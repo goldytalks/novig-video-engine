@@ -1,117 +1,226 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
+import axios from "axios";
 import { renderVideo } from "./pipeline/render";
 import { scripterOutputToVideoInput } from "./scripterConnector";
 import type { VideoInput } from "./types";
 
 const app = express();
-app.use(cors());
+const isProd = process.env.NODE_ENV === "production";
+const PORT = process.env.PORT || 3000;
+
+// CORS
+app.use(
+  cors({
+    origin: [
+      "https://novig-scripter.vercel.app",
+      "http://localhost:3000",
+      "http://localhost:3001",
+    ],
+  })
+);
 app.use(express.json({ limit: "10mb" }));
 
-// ENV validation
-function validateEnv() {
-  const checks = [
-    { key: "ELEVENLABS_API_KEY", required: false },
-    { key: "ELEVENLABS_VOICE_ID", required: false },
-    { key: "OPENROUTER_API_KEY", required: false },
-  ];
+// Serve dashboard
+app.use(express.static(path.join(process.cwd(), "public")));
 
-  for (const check of checks) {
-    const val = process.env[check.key];
-    if (val && val.length > 5) {
-      console.log(`  ✅ ${check.key}: set`);
-    } else {
-      console.log(`  ⚠️  ${check.key}: not set${check.required ? " (REQUIRED)" : ""}`);
+// --- Render history (in-memory, last 10) ---
+type RenderRecord = {
+  id: string;
+  title: string;
+  date: string;
+  filePath: string;
+  createdAt: string;
+  durationMs: number;
+  fileSize: number;
+};
+const renderHistory: RenderRecord[] = [];
+
+function addToHistory(record: RenderRecord) {
+  renderHistory.unshift(record);
+  // Clean up old files beyond 10
+  while (renderHistory.length > 10) {
+    const old = renderHistory.pop();
+    if (old && fs.existsSync(old.filePath)) {
+      fs.unlinkSync(old.filePath);
     }
   }
 }
 
-// Health check
+// --- ENV validation ---
+function validateEnv() {
+  const keys = ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "OPENROUTER_API_KEY"];
+  for (const key of keys) {
+    const val = process.env[key];
+    if (val && val.length > 5) {
+      console.log(`  ✅ ${key}: set`);
+    } else {
+      console.log(`  ⚠️  ${key}: not set`);
+    }
+  }
+}
+
+// --- Routes ---
+
+// Health
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    timestamp: new Date().toISOString(),
+    environment: isProd ? "production" : "development",
+    version: "1.0.0",
+  });
 });
+
+// Config (for scripter frontend discovery)
+app.get("/config", (_req, res) => {
+  res.json({
+    status: "ok",
+    endpoints: ["/render", "/render-from-script", "/render-from-url", "/renders/:id", "/history"],
+    cors: ["https://novig-scripter.vercel.app"],
+    studioAvailable: !isProd,
+  });
+});
+
+// Render history list
+app.get("/history", (_req, res) => {
+  res.json(
+    renderHistory.map((r) => ({
+      id: r.id,
+      title: r.title,
+      date: r.date,
+      createdAt: r.createdAt,
+      durationMs: r.durationMs,
+      fileSize: r.fileSize,
+    }))
+  );
+});
+
+// Download a past render
+app.get("/renders/:id", (req, res) => {
+  const record = renderHistory.find((r) => r.id === req.params.id);
+  if (!record || !fs.existsSync(record.filePath)) {
+    res.status(404).json({ error: "Render not found" });
+    return;
+  }
+  res.setHeader("Content-Type", "video/mp4");
+  res.setHeader("Content-Disposition", `attachment; filename="novig-${record.id}.mp4"`);
+  fs.createReadStream(record.filePath).pipe(res);
+});
+
+// Helper: render and respond
+async function doRender(input: VideoInput, res: express.Response) {
+  const startTime = Date.now();
+  const outputPath = await renderVideo(input);
+  const elapsed = Date.now() - startTime;
+  const stat = fs.statSync(outputPath);
+
+  const id = crypto.randomUUID().slice(0, 8);
+  addToHistory({
+    id,
+    title: input.title,
+    date: input.date,
+    filePath: outputPath,
+    createdAt: new Date().toISOString(),
+    durationMs: elapsed,
+    fileSize: stat.size,
+  });
+
+  console.log(`  Completed in ${(elapsed / 1000).toFixed(1)}s → ${outputPath} (id: ${id})`);
+
+  res.setHeader("Content-Type", "video/mp4");
+  res.setHeader("Content-Disposition", `attachment; filename="novig-${id}.mp4"`);
+  res.setHeader("X-Render-Id", id);
+  fs.createReadStream(outputPath).pipe(res);
+}
 
 // Direct render from VideoInput
 app.post("/render", async (req, res) => {
-  const startTime = Date.now();
   const input: VideoInput = req.body;
-
   if (!input || !input.script || !input.title) {
     res.status(400).json({ error: "Invalid VideoInput: missing script or title" });
     return;
   }
-
   console.log(`\n[${new Date().toISOString()}] POST /render — "${input.title}"`);
-
   try {
-    const outputPath = await renderVideo(input);
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`  Completed in ${elapsed}s → ${outputPath}`);
-
-    res.setHeader("Content-Type", "video/mp4");
-    res.setHeader("Content-Disposition", `attachment; filename="novig-${Date.now()}.mp4"`);
-    const stream = fs.createReadStream(outputPath);
-    stream.pipe(res);
-    stream.on("end", () => {
-      fs.unlinkSync(outputPath);
-    });
+    await doRender(input, res);
   } catch (err: any) {
     console.error("  Render failed:", err.message);
     res.status(500).json({ error: "Render failed", message: err.message });
   }
 });
 
-// Render from scripter output (simpler input)
+// Render from scripter output
 app.post("/render-from-script", async (req, res) => {
-  const startTime = Date.now();
   const { script, title, date, handle, players } = req.body;
-
   if (!script) {
-    res.status(400).json({ error: "Missing 'script' field in request body" });
+    res.status(400).json({ error: "Missing 'script' field" });
     return;
   }
-
   console.log(`\n[${new Date().toISOString()}] POST /render-from-script — "${title || "untitled"}"`);
-
   try {
     const videoInput = scripterOutputToVideoInput({ script, title, date, handle, players });
-    console.log(`  Generated ${videoInput.broll.length} b-roll slots, ${videoInput.script.length} script segments`);
-
-    const outputPath = await renderVideo(videoInput);
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`  Completed in ${elapsed}s → ${outputPath}`);
-
-    res.setHeader("Content-Type", "video/mp4");
-    res.setHeader("Content-Disposition", `attachment; filename="novig-${Date.now()}.mp4"`);
-    const stream = fs.createReadStream(outputPath);
-    stream.pipe(res);
-    stream.on("end", () => {
-      fs.unlinkSync(outputPath);
-    });
+    console.log(`  Generated ${videoInput.broll.length} b-roll slots, ${videoInput.script.length} segments`);
+    await doRender(videoInput, res);
   } catch (err: any) {
     console.error("  Render failed:", err.message);
     res.status(500).json({ error: "Render failed", message: err.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
+// Render from scripter URL
+app.post("/render-from-url", async (req, res) => {
+  const { scripterUrl } = req.body;
+  if (!scripterUrl) {
+    res.status(400).json({ error: "Missing 'scripterUrl' field" });
+    return;
+  }
+  console.log(`\n[${new Date().toISOString()}] POST /render-from-url — ${scripterUrl}`);
+  try {
+    const { data } = await axios.get(scripterUrl);
+    const videoInput = scripterOutputToVideoInput({
+      script: data.script || data.text,
+      title: data.title,
+      date: data.date,
+      handle: data.handle,
+      players: data.players,
+    });
+    await doRender(videoInput, res);
+  } catch (err: any) {
+    console.error("  Render failed:", err.message);
+    res.status(500).json({ error: "Render failed", message: err.message });
+  }
+});
 
+// --- Startup ---
 console.log("\n🎬 Novig Video Engine — Starting up...\n");
 validateEnv();
-console.log("");
+console.log(`\n  Environment: ${isProd ? "production" : "development"}`);
 
-// Ensure output directory exists
-const outputDir = path.join(process.cwd(), "output");
-if (!fs.existsSync(outputDir)) {
-  fs.mkdirSync(outputDir, { recursive: true });
+// Ensure directories
+for (const dir of ["output", "public/assets"]) {
+  const full = path.join(process.cwd(), dir);
+  if (!fs.existsSync(full)) fs.mkdirSync(full, { recursive: true });
+}
+
+if (process.env.RAILWAY_STATIC_URL) {
+  console.log(`  Railway URL: ${process.env.RAILWAY_STATIC_URL}`);
 }
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/health`);
-  console.log(`   Render: POST http://localhost:${PORT}/render`);
-  console.log(`   Script: POST http://localhost:${PORT}/render-from-script\n`);
+  console.log(`\n🚀 Server running on port ${PORT}`);
+  console.log(`   Dashboard: http://localhost:${PORT}`);
+  console.log(`   Health:    http://localhost:${PORT}/health`);
+  console.log(`   Config:    http://localhost:${PORT}/config`);
+  console.log(`   Render:    POST http://localhost:${PORT}/render`);
+  console.log(`   Script:    POST http://localhost:${PORT}/render-from-script`);
+  console.log(`   URL:       POST http://localhost:${PORT}/render-from-url`);
+  if (!isProd) {
+    console.log(`   Studio:    http://localhost:3001 (run npm run studio separately)`);
+  }
+  console.log("");
 });

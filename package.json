@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npx remotion preview src/index.ts",
+    "dev": "npx concurrently \"npm start\" \"npx remotion studio src/index.ts\"",
     "render": "npx tsx scripts/run.ts",
     "studio": "npx remotion studio src/index.ts",
-    "start": "npx tsx src/server.ts"
+    "start": "npx tsx src/server.ts",
+    "setup": "npx tsx scripts/devSetup.ts"
   },
   "engines": {
     "node": ">=18.0.0"
@@ -33,6 +34,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
+    "concurrently": "^9.2.1",
     "ffmpeg-static": "^5.2.0",
     "typescript": "^5.7.2"
   }

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novig Video Engine</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      color: #e0e0e0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 24px 20px; }
+
+    /* Header */
+    .header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 0; border-bottom: 1px solid #1a1a1a; margin-bottom: 32px;
+    }
+    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
+    .header h1 span { color: #00FF00; }
+    .header-status {
+      display: flex; align-items: center; gap: 12px; font-size: 13px; color: #666;
+    }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%; background: #00FF00;
+      box-shadow: 0 0 6px #00FF00; animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+    /* Form */
+    .panel {
+      background: #111; border: 1px solid #1a1a1a; border-radius: 12px;
+      padding: 24px; margin-bottom: 20px;
+    }
+    .panel h2 { font-size: 14px; font-weight: 600; color: #888; text-transform: uppercase;
+      letter-spacing: 1px; margin-bottom: 16px; }
+    label { display: block; font-size: 13px; color: #888; margin-bottom: 6px; font-weight: 500; }
+    textarea, input[type="text"] {
+      width: 100%; background: #0a0a0a; border: 1px solid #222; border-radius: 8px;
+      color: #e0e0e0; padding: 12px; font-size: 14px; font-family: inherit;
+      outline: none; transition: border-color 0.2s;
+    }
+    textarea:focus, input[type="text"]:focus { border-color: #00FF00; }
+    textarea { min-height: 140px; resize: vertical; margin-bottom: 16px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .form-group { margin-bottom: 12px; }
+    .btn {
+      width: 100%; padding: 14px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 16px; font-weight: 700; letter-spacing: 0.5px; transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #00FF00; color: #000; margin-top: 8px;
+    }
+    .btn-primary:hover { background: #33ff33; transform: translateY(-1px); }
+    .btn-primary:disabled { background: #1a3a1a; color: #444; cursor: not-allowed; transform: none; }
+    .btn-secondary {
+      background: #1a1a1a; color: #ccc; border: 1px solid #333; margin-top: 8px;
+    }
+    .btn-secondary:hover { background: #222; }
+
+    /* Progress */
+    .progress-bar-bg {
+      width: 100%; height: 6px; background: #1a1a1a; border-radius: 3px;
+      overflow: hidden; margin: 12px 0;
+    }
+    .progress-bar-fill {
+      height: 100%; background: #00FF00; border-radius: 3px;
+      transition: width 0.3s; box-shadow: 0 0 8px rgba(0,255,0,0.4);
+    }
+    .status-text { font-size: 14px; color: #888; }
+    .status-text.success { color: #00FF00; }
+    .status-text.error { color: #ff4444; }
+    .elapsed { font-size: 12px; color: #555; margin-top: 4px; }
+
+    /* History */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; color: #555; font-weight: 500; padding: 8px 0;
+      border-bottom: 1px solid #1a1a1a; }
+    td { padding: 10px 0; border-bottom: 1px solid #111; }
+    .dl-btn {
+      background: none; border: 1px solid #00FF00; color: #00FF00; padding: 4px 12px;
+      border-radius: 4px; cursor: pointer; font-size: 12px;
+    }
+    .dl-btn:hover { background: rgba(0,255,0,0.1); }
+    .empty-state { text-align: center; color: #444; padding: 24px; font-size: 13px; }
+
+    /* Studio link */
+    .studio-link {
+      display: inline-block; margin-top: 12px; color: #00FF00; font-size: 13px;
+      text-decoration: none; opacity: 0.7;
+    }
+    .studio-link:hover { opacity: 1; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1><span>⚡</span> NOVIG VIDEO ENGINE</h1>
+      <div class="header-status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusLabel">Connecting...</span>
+      </div>
+    </div>
+
+    <!-- Script Input -->
+    <div class="panel">
+      <h2>Script Input</h2>
+      <label for="script">Script</label>
+      <textarea id="script" placeholder="Paste your narration script here...">The Cavs are sweeping everyone in their path right now. Donovan Mitchell is playing out of his mind. Tonight against the Lakers, we're backing Cleveland to cover the spread. Take the Cavs minus four. This is a lock.</textarea>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="title">Title</label>
+          <input type="text" id="title" value="NBA Wednesday Picks">
+        </div>
+        <div class="form-group">
+          <label for="date">Date</label>
+          <input type="text" id="date" value="">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="handle">Handle</label>
+          <input type="text" id="handle" value="@novig">
+        </div>
+        <div class="form-group">
+          <label for="players">Players (comma-separated)</label>
+          <input type="text" id="players" placeholder="Steph Curry, LeBron James" value="Donovan Mitchell">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="renderBtn" onclick="startRender()">🎬 Generate Video</button>
+    </div>
+
+    <!-- Progress -->
+    <div class="panel" id="progressPanel" style="display:none;">
+      <h2>Render Status</h2>
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="status-text" id="statusText">Starting render...</div>
+      <div class="elapsed" id="elapsedText"></div>
+      <button class="btn btn-secondary hidden" id="downloadBtn" onclick="downloadLatest()">⬇ Download MP4</button>
+      <button class="btn btn-secondary hidden" id="resetBtn" onclick="resetForm()">Render Another</button>
+    </div>
+
+    <!-- History -->
+    <div class="panel">
+      <h2>Render History</h2>
+      <table>
+        <thead><tr><th>Time</th><th>Title</th><th>Render Time</th><th></th></tr></thead>
+        <tbody id="historyBody">
+        </tbody>
+      </table>
+      <div class="empty-state" id="emptyHistory">No renders yet this session</div>
+    </div>
+
+    <!-- Studio link (dev only) -->
+    <a class="studio-link hidden" id="studioLink" href="http://localhost:3001" target="_blank">🎨 Open Remotion Studio</a>
+  </div>
+
+  <script>
+    // Auto-fill today's date
+    const dateInput = document.getElementById('date');
+    if (!dateInput.value) {
+      dateInput.value = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    }
+
+    let latestRenderId = null;
+    let renderTimer = null;
+
+    // Check server health on load
+    async function checkHealth() {
+      try {
+        const res = await fetch('/health');
+        const data = await res.json();
+        document.getElementById('statusDot').style.background = '#00FF00';
+        document.getElementById('statusLabel').textContent = 'Live';
+
+        // Check if studio available
+        const cfgRes = await fetch('/config');
+        const cfg = await cfgRes.json();
+        if (cfg.studioAvailable) {
+          document.getElementById('studioLink').classList.remove('hidden');
+        }
+      } catch {
+        document.getElementById('statusDot').style.background = '#ff4444';
+        document.getElementById('statusLabel').textContent = 'Offline';
+      }
+      loadHistory();
+    }
+
+    async function loadHistory() {
+      try {
+        const res = await fetch('/history');
+        const history = await res.json();
+        const tbody = document.getElementById('historyBody');
+        const empty = document.getElementById('emptyHistory');
+        if (history.length === 0) { empty.style.display = ''; tbody.innerHTML = ''; return; }
+        empty.style.display = 'none';
+        tbody.innerHTML = history.map(r => {
+          const time = new Date(r.createdAt).toLocaleTimeString();
+          const dur = (r.durationMs / 1000).toFixed(0) + 's';
+          const size = (r.fileSize / 1024 / 1024).toFixed(1) + ' MB';
+          return `<tr>
+            <td>${time}</td>
+            <td>${r.title}</td>
+            <td>${dur} (${size})</td>
+            <td><button class="dl-btn" onclick="window.location='/renders/${r.id}'">Download</button></td>
+          </tr>`;
+        }).join('');
+      } catch {}
+    }
+
+    async function startRender() {
+      const script = document.getElementById('script').value.trim();
+      if (!script) { alert('Please enter a script'); return; }
+
+      const body = {
+        script,
+        title: document.getElementById('title').value || 'Untitled',
+        date: document.getElementById('date').value,
+        handle: document.getElementById('handle').value || '@novig',
+        players: document.getElementById('players').value.split(',').map(s => s.trim()).filter(Boolean),
+      };
+
+      // UI state: rendering
+      document.getElementById('renderBtn').disabled = true;
+      const panel = document.getElementById('progressPanel');
+      panel.style.display = '';
+      document.getElementById('progressFill').style.width = '0%';
+      document.getElementById('statusText').className = 'status-text';
+      document.getElementById('statusText').textContent = 'Rendering... (~30 seconds)';
+      document.getElementById('downloadBtn').classList.add('hidden');
+      document.getElementById('resetBtn').classList.add('hidden');
+
+      let elapsed = 0;
+      renderTimer = setInterval(() => {
+        elapsed++;
+        document.getElementById('elapsedText').textContent = `${elapsed}s elapsed`;
+        // Fake progress that approaches but never reaches 100%
+        const pct = Math.min(95, (1 - Math.exp(-elapsed / 25)) * 100);
+        document.getElementById('progressFill').style.width = pct + '%';
+      }, 1000);
+
+      try {
+        const res = await fetch('/render-from-script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+
+        clearInterval(renderTimer);
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.message || 'Render failed');
+        }
+
+        latestRenderId = res.headers.get('X-Render-Id');
+        document.getElementById('progressFill').style.width = '100%';
+        document.getElementById('statusText').textContent = '✅ Video ready!';
+        document.getElementById('statusText').className = 'status-text success';
+        document.getElementById('downloadBtn').classList.remove('hidden');
+        document.getElementById('resetBtn').classList.remove('hidden');
+
+        // Auto-download
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `novig-${latestRenderId || 'video'}.mp4`;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        loadHistory();
+      } catch (err) {
+        clearInterval(renderTimer);
+        document.getElementById('progressFill').style.width = '100%';
+        document.getElementById('progressFill').style.background = '#ff4444';
+        document.getElementById('statusText').textContent = '❌ Error: ' + err.message;
+        document.getElementById('statusText').className = 'status-text error';
+        document.getElementById('resetBtn').classList.remove('hidden');
+      }
+
+      document.getElementById('renderBtn').disabled = false;
+    }
+
+    function downloadLatest() {
+      if (latestRenderId) window.location = '/renders/' + latestRenderId;
+    }
+
+    function resetForm() {
+      document.getElementById('progressPanel').style.display = 'none';
+      document.getElementById('progressFill').style.background = '#00FF00';
+      document.getElementById('renderBtn').disabled = false;
+    }
+
+    checkHealth();
+  </script>
+</body>
+</html>
