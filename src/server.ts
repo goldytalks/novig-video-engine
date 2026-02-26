@@ -7,7 +7,10 @@ import path from "path";
 import axios from "axios";
 import { renderVideo } from "./pipeline/render";
 import { scripterOutputToVideoInput } from "./scripterConnector";
+import { extractTranscript } from "./scripter/transcript";
+import { generateScript } from "./scripter/generate";
 import type { VideoInput } from "./types";
+import type { ScripterSettings } from "./scripter/types";
 
 const app = express();
 const isProd = process.env.NODE_ENV === "production";
@@ -53,7 +56,7 @@ function addToHistory(record: RenderRecord) {
 
 // --- ENV validation ---
 function validateEnv() {
-  const keys = ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "OPENROUTER_API_KEY"];
+  const keys = ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "OPENROUTER_API_KEY", "GOOGLE_AI_KEY"];
   for (const key of keys) {
     const val = process.env[key];
     if (val && val.length > 5) {
@@ -80,7 +83,7 @@ app.get("/health", (_req, res) => {
 app.get("/config", (_req, res) => {
   res.json({
     status: "ok",
-    endpoints: ["/render", "/render-from-script", "/render-from-url", "/renders/:id", "/history"],
+    endpoints: ["/render", "/render-from-script", "/render-from-url", "/renders/:id", "/history", "/api/generate"],
     cors: ["https://novig-scripter.vercel.app"],
     studioAvailable: !isProd,
   });
@@ -193,6 +196,46 @@ app.post("/render-from-url", async (req, res) => {
   } catch (err: any) {
     console.error("  Render failed:", err.message);
     res.status(500).json({ error: "Render failed", message: err.message });
+  }
+});
+
+// --- Script Generation ---
+app.post("/api/generate", async (req, res) => {
+  const { url, manualTranscript, settings } = req.body as {
+    url?: string;
+    manualTranscript?: string;
+    settings: ScripterSettings;
+  };
+
+  if (!settings) {
+    res.status(400).json({ error: "Missing 'settings' field" });
+    return;
+  }
+
+  console.log(`\n[${new Date().toISOString()}] POST /api/generate — url: ${url || "(manual)"}`);
+
+  try {
+    // Step 1: Extract transcript
+    const transcriptResult = await extractTranscript(url, manualTranscript);
+    console.log(
+      `  Transcript: ${transcriptResult.text.length} chars via ${transcriptResult.method}`
+    );
+
+    // Step 2: Generate script
+    const result = await generateScript(transcriptResult.text, settings);
+
+    // Return full result
+    res.json({
+      ...result,
+      videoTitle: transcriptResult.videoTitle,
+      channel: transcriptResult.channel,
+      videoId: transcriptResult.videoId,
+      platform: transcriptResult.platform,
+      transcript: transcriptResult.text,
+    });
+  } catch (err: any) {
+    console.error("  Script generation failed:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

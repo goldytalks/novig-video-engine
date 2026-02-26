@@ -158,8 +158,11 @@
       <div class="empty-state" id="emptyHistory">No renders yet this session</div>
     </div>
 
-    <!-- Studio link (dev only) -->
-    <a class="studio-link hidden" id="studioLink" href="http://localhost:3001" target="_blank">🎨 Open Remotion Studio</a>
+    <!-- Links -->
+    <div style="display:flex;gap:16px;align-items:center;margin-top:8px;">
+      <a href="/scripter.html" style="color:#00FF00;font-size:13px;text-decoration:none;opacity:0.7;">📝 Script Machine</a>
+      <a class="studio-link hidden" id="studioLink" href="http://localhost:3001" target="_blank" style="color:#00FF00;font-size:13px;text-decoration:none;opacity:0.7;">🎨 Remotion Studio</a>
+    </div>
   </div>
 
   <script>
@@ -297,6 +300,18 @@
       document.getElementById('progressPanel').style.display = 'none';
       document.getElementById('progressFill').style.background = '#00FF00';
       document.getElementById('renderBtn').disabled = false;
+    }
+
+    // Auto-fill from scripter URL params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('fromScripter')) {
+      if (params.get('script')) document.getElementById('script').value = params.get('script');
+      if (params.get('title')) document.getElementById('title').value = params.get('title');
+      if (params.get('date')) document.getElementById('date').value = params.get('date');
+      if (params.get('handle')) document.getElementById('handle').value = params.get('handle');
+      if (params.get('players')) document.getElementById('players').value = params.get('players');
+      // Clean URL
+      window.history.replaceState({}, '', '/');
     }
 
     checkHealth();

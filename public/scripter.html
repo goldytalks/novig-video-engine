@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Novig Script Machine</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+    /* Header */
+    .header { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #1a1a1a; margin-bottom: 24px; }
+    .header h1 { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+    .header h1 span { color: #00FF00; }
+    .header-right { display: flex; align-items: center; gap: 16px; font-size: 12px; color: #666; }
+    .cost-badge { background: #111; border: 1px solid #222; border-radius: 6px; padding: 4px 10px; font-size: 11px; color: #888; }
+    .back-link { color: #00FF00; text-decoration: none; font-size: 13px; opacity: 0.7; }
+    .back-link:hover { opacity: 1; }
+
+    /* Panels */
+    .panel { background: #111; border: 1px solid #1a1a1a; border-radius: 10px; padding: 20px; margin-bottom: 16px; }
+    .panel h2 { font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 14px; }
+
+    /* Inputs */
+    label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; font-weight: 500; }
+    input[type="text"], textarea {
+      width: 100%; background: #0a0a0a; border: 1px solid #222; border-radius: 6px;
+      color: #e0e0e0; padding: 10px 12px; font-size: 13px; font-family: inherit; outline: none; transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus { border-color: #00FF00; }
+    textarea { min-height: 80px; resize: vertical; }
+
+    /* URL input with badge */
+    .url-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .url-row input { flex: 1; }
+    .platform-badge { font-size: 11px; padding: 3px 8px; border-radius: 4px; font-weight: 600; white-space: nowrap; }
+    .badge-youtube { background: #cc0000; color: white; }
+    .badge-instagram { background: #833ab4; color: white; }
+    .badge-twitter { background: #1da1f2; color: white; }
+    .badge-none { background: #222; color: #666; }
+
+    /* Pills */
+    .pill-group { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .pill {
+      padding: 6px 14px; border-radius: 20px; border: 1px solid #333; background: #0a0a0a;
+      color: #999; font-size: 12px; cursor: pointer; transition: all 0.15s; user-select: none;
+    }
+    .pill:hover { border-color: #00FF00; color: #ccc; }
+    .pill.active { background: #00FF00; color: #000; border-color: #00FF00; font-weight: 600; }
+
+    /* Toggle */
+    .toggle-row { display: flex; gap: 16px; margin-bottom: 12px; }
+    .toggle-label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #888; cursor: pointer; }
+    .toggle-label input { accent-color: #00FF00; }
+
+    /* Custom hook toggle */
+    .custom-hook-toggle { font-size: 12px; color: #00FF00; cursor: pointer; margin-bottom: 8px; opacity: 0.8; }
+    .custom-hook-toggle:hover { opacity: 1; }
+
+    /* Generate button */
+    .btn-generate {
+      width: 100%; padding: 14px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 15px; font-weight: 700; background: #00FF00; color: #000; transition: all 0.2s;
+    }
+    .btn-generate:hover { background: #33ff33; transform: translateY(-1px); }
+    .btn-generate:disabled { background: #1a3a1a; color: #444; cursor: not-allowed; transform: none; }
+
+    /* Output layout */
+    .output-grid { display: grid; grid-template-columns: 1fr 380px; gap: 16px; }
+    @media (max-width: 900px) { .output-grid { grid-template-columns: 1fr; } }
+
+    /* Video meta */
+    .meta-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
+    .meta-item { font-size: 12px; color: #666; }
+    .meta-item b { color: #aaa; }
+
+    /* Stats row */
+    .stats-row { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+    .stat-box { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 6px; padding: 8px 14px; }
+    .stat-box .val { font-size: 18px; font-weight: 700; color: #fff; }
+    .stat-box .lbl { font-size: 10px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+
+    /* Script sections */
+    .section-block { margin-bottom: 14px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .section-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 3px; letter-spacing: 1px; }
+    .tag-hook { background: rgba(245,158,11,0.2); color: #f59e0b; }
+    .tag-body { background: rgba(16,185,129,0.2); color: #10b981; }
+    .tag-cta { background: rgba(59,130,246,0.2); color: #3b82f6; }
+    .section-meta { font-size: 11px; color: #555; }
+    .section-textarea {
+      width: 100%; background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 6px;
+      color: #e0e0e0; padding: 12px; font-size: 13px; font-family: inherit; outline: none;
+      resize: vertical; min-height: 60px; line-height: 1.6;
+    }
+    .section-textarea:focus { border-color: #333; }
+
+    /* Alt hooks */
+    .alt-hook { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 6px; padding: 10px 12px; margin-bottom: 6px; cursor: pointer; font-size: 13px; color: #ccc; transition: border-color 0.15s; }
+    .alt-hook:hover { border-color: #f59e0b; }
+
+    /* Sidebar panels */
+    .sidebar-panel { margin-bottom: 12px; }
+    .sidebar-panel h3 { font-size: 11px; font-weight: 600; color: #444; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .sidebar-list { list-style: none; }
+    .sidebar-list li { font-size: 12px; color: #999; padding: 3px 0; border-bottom: 1px solid #111; }
+    .sidebar-list li::before { content: "•"; color: #00FF00; margin-right: 6px; }
+
+    /* Timeline bar */
+    .timeline-bar { display: flex; height: 24px; border-radius: 4px; overflow: hidden; margin-bottom: 10px; }
+    .tl-hook { background: #f59e0b; }
+    .tl-body { background: #10b981; }
+    .tl-cta { background: #3b82f6; }
+    .tl-segment { display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; color: rgba(0,0,0,0.7); }
+
+    /* Timeline detail */
+    .tl-clip { background: #0a0a0a; border: 1px solid #1a1a1a; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; font-size: 11px; }
+    .tl-clip-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .tl-clip-label { font-weight: 600; }
+    .tl-clip-time { color: #555; }
+    .tl-clip-detail { color: #666; font-size: 10px; }
+
+    /* Action buttons */
+    .action-row { display: flex; gap: 8px; margin-top: 12px; }
+    .btn-sm { padding: 8px 14px; border-radius: 6px; border: 1px solid #333; background: #111; color: #ccc; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+    .btn-sm:hover { border-color: #00FF00; color: #fff; }
+    .btn-sm.green { background: #00FF00; color: #000; border-color: #00FF00; font-weight: 600; }
+    .btn-sm.green:hover { background: #33ff33; }
+
+    /* Progress overlay */
+    .loading-overlay { text-align: center; padding: 40px; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #222; border-top-color: #00FF00; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .hidden { display: none; }
+    .error-msg { color: #ff4444; font-size: 13px; margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1><span>📝</span> NOVIG SCRIPT MACHINE</h1>
+      <div class="header-right">
+        <span class="cost-badge" id="costBadge">Session: $0.000</span>
+        <a href="/" class="back-link">← Video Engine</a>
+      </div>
+    </div>
+
+    <!-- Input Panel -->
+    <div class="panel" id="inputPanel">
+      <h2>Input</h2>
+
+      <label>Video URL</label>
+      <div class="url-row">
+        <input type="text" id="urlInput" placeholder="https://youtube.com/shorts/... or https://instagram.com/reel/...">
+        <span class="platform-badge badge-none" id="platformBadge">—</span>
+      </div>
+
+      <label>Manual Transcript <span style="color:#444">(paste if URL extraction fails)</span></label>
+      <textarea id="transcriptInput" rows="3" placeholder="Paste spoken words here..."></textarea>
+
+      <div class="custom-hook-toggle" id="hookToggle" onclick="toggleCustomHook()">+ Write your own hook</div>
+      <div class="hidden" id="customHookWrap">
+        <label>Custom Hook</label>
+        <textarea id="customHookInput" rows="2" placeholder="Your hook text (used verbatim)..."></textarea>
+      </div>
+
+      <label style="margin-top:12px">Duration</label>
+      <div class="pill-group" id="durationPills">
+        <div class="pill" data-val="30" onclick="selectPill(this,'duration')">30s</div>
+        <div class="pill active" data-val="45" onclick="selectPill(this,'duration')">45s</div>
+        <div class="pill" data-val="60" onclick="selectPill(this,'duration')">60s</div>
+        <div class="pill" data-val="90" onclick="selectPill(this,'duration')">90s</div>
+      </div>
+
+      <label>Style</label>
+      <div class="pill-group" id="stylePills">
+        <div class="pill active" data-val="hype" onclick="selectPill(this,'style')">Hype</div>
+        <div class="pill" data-val="analytical" onclick="selectPill(this,'style')">Analytical</div>
+        <div class="pill" data-val="casual" onclick="selectPill(this,'style')">Casual</div>
+      </div>
+
+      <div class="toggle-row">
+        <label class="toggle-label"><input type="checkbox" id="graphicsToggle" checked> Graphics markers [GFX:]</label>
+        <label class="toggle-label"><input type="checkbox" id="statsToggle" checked> Stats markers [STAT:]</label>
+      </div>
+
+      <button class="btn-generate" id="generateBtn" onclick="generate()">📝 Generate Script</button>
+      <div class="error-msg hidden" id="errorMsg"></div>
+    </div>
+
+    <!-- Loading -->
+    <div class="panel hidden" id="loadingPanel">
+      <div class="loading-overlay">
+        <div class="spinner"></div>
+        <div style="color:#888;font-size:13px" id="loadingText">Extracting transcript...</div>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div class="hidden" id="outputWrap">
+      <div class="output-grid">
+        <!-- Left: Script -->
+        <div>
+          <div class="panel">
+            <h2>Generated Script</h2>
+
+            <!-- Video meta -->
+            <div class="meta-row" id="metaRow"></div>
+
+            <!-- Stats -->
+            <div class="stats-row">
+              <div class="stat-box"><div class="val" id="statWords">—</div><div class="lbl">Words</div></div>
+              <div class="stat-box"><div class="val" id="statDuration">—</div><div class="lbl">Est. Duration</div></div>
+              <div class="stat-box"><div class="val" id="statTarget">—</div><div class="lbl">Target</div></div>
+              <div class="stat-box"><div class="val" id="statCost">—</div><div class="lbl">Cost</div></div>
+            </div>
+
+            <!-- HOOK -->
+            <div class="section-block">
+              <div class="section-header">
+                <span class="section-tag tag-hook">HOOK</span>
+                <span class="section-meta" id="hookMeta"></span>
+              </div>
+              <textarea class="section-textarea" id="hookText" rows="2" oninput="recalc()"></textarea>
+            </div>
+
+            <!-- BODY -->
+            <div class="section-block">
+              <div class="section-header">
+                <span class="section-tag tag-body">BODY</span>
+                <span class="section-meta" id="bodyMeta"></span>
+              </div>
+              <textarea class="section-textarea" id="bodyText" rows="5" oninput="recalc()"></textarea>
+            </div>
+
+            <!-- CTA -->
+            <div class="section-block">
+              <div class="section-header">
+                <span class="section-tag tag-cta">CTA</span>
+                <span class="section-meta" id="ctaMeta"></span>
+              </div>
+              <textarea class="section-textarea" id="ctaText" rows="2" oninput="recalc()"></textarea>
+            </div>
+
+            <!-- Alt hooks -->
+            <div id="altHooksWrap" class="hidden">
+              <h2 style="font-size:11px;color:#555;margin:14px 0 8px;text-transform:uppercase;letter-spacing:1px;">Alternative Hooks</h2>
+              <div id="altHooksList"></div>
+            </div>
+
+            <!-- Actions -->
+            <div class="action-row">
+              <button class="btn-sm" onclick="copyScript()">📋 Copy Script</button>
+              <button class="btn-sm" onclick="copyTimeline()">📋 Copy Timeline JSON</button>
+              <button class="btn-sm" onclick="downloadTimeline()">⬇ Export Timeline</button>
+              <button class="btn-sm green" onclick="sendToVideoEngine()">🎬 Render Video</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Sidebar -->
+        <div>
+          <!-- Section Timing -->
+          <div class="panel sidebar-panel">
+            <h3>Section Timing</h3>
+            <div class="timeline-bar" id="timelineBar"></div>
+            <div id="timelineClips"></div>
+          </div>
+
+          <!-- Footage -->
+          <div class="panel sidebar-panel">
+            <h3>Background Footage</h3>
+            <ul class="sidebar-list" id="footageList"></ul>
+          </div>
+
+          <!-- Graphics -->
+          <div class="panel sidebar-panel" id="graphicsPanel">
+            <h3>Graphics Needed</h3>
+            <ul class="sidebar-list" id="graphicsList"></ul>
+          </div>
+
+          <!-- Production Notes -->
+          <div class="panel sidebar-panel">
+            <h3>Production Notes</h3>
+            <ul class="sidebar-list" id="notesList"></ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const WPS = 2.8;
+    let currentResult = null;
+    let sessionCost = parseFloat(localStorage.getItem('novig_scripter_cost') || '0');
+    updateCostBadge();
+
+    // Platform detection
+    document.getElementById('urlInput').addEventListener('input', (e) => {
+      const url = e.target.value;
+      const badge = document.getElementById('platformBadge');
+      if (/youtube\.com|youtu\.be/i.test(url)) { badge.textContent = 'YouTube'; badge.className = 'platform-badge badge-youtube'; }
+      else if (/instagram\.com/i.test(url)) { badge.textContent = 'Instagram'; badge.className = 'platform-badge badge-instagram'; }
+      else if (/twitter\.com|x\.com/i.test(url)) { badge.textContent = 'X/Twitter'; badge.className = 'platform-badge badge-twitter'; }
+      else { badge.textContent = '—'; badge.className = 'platform-badge badge-none'; }
+    });
+
+    function selectPill(el, group) {
+      const parent = el.parentElement;
+      parent.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+      el.classList.add('active');
+    }
+
+    function toggleCustomHook() {
+      const wrap = document.getElementById('customHookWrap');
+      const toggle = document.getElementById('hookToggle');
+      if (wrap.classList.contains('hidden')) {
+        wrap.classList.remove('hidden');
+        toggle.textContent = '− Hide custom hook';
+      } else {
+        wrap.classList.add('hidden');
+        toggle.textContent = '+ Write your own hook';
+      }
+    }
+
+    function getSettings() {
+      const duration = document.querySelector('#durationPills .pill.active')?.dataset.val || '45';
+      const style = document.querySelector('#stylePills .pill.active')?.dataset.val || 'hype';
+      return {
+        targetSeconds: parseInt(duration),
+        style,
+        includeGraphics: document.getElementById('graphicsToggle').checked,
+        includeStats: document.getElementById('statsToggle').checked,
+        customHook: document.getElementById('customHookInput').value.trim() || undefined,
+      };
+    }
+
+    async function generate() {
+      const url = document.getElementById('urlInput').value.trim();
+      const manual = document.getElementById('transcriptInput').value.trim();
+      if (!url && !manual) { showError('Enter a URL or paste a transcript'); return; }
+
+      hideError();
+      document.getElementById('generateBtn').disabled = true;
+      document.getElementById('loadingPanel').classList.remove('hidden');
+      document.getElementById('outputWrap').classList.add('hidden');
+      document.getElementById('loadingText').textContent = url ? 'Extracting transcript...' : 'Generating script...';
+
+      try {
+        const res = await fetch('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: url || undefined,
+            manualTranscript: manual || undefined,
+            settings: getSettings(),
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error || 'Generation failed');
+        }
+
+        currentResult = await res.json();
+        sessionCost += currentResult.totalCost || 0;
+        localStorage.setItem('novig_scripter_cost', sessionCost.toString());
+        updateCostBadge();
+        renderOutput(currentResult);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        document.getElementById('generateBtn').disabled = false;
+        document.getElementById('loadingPanel').classList.add('hidden');
+      }
+    }
+
+    function renderOutput(r) {
+      document.getElementById('outputWrap').classList.remove('hidden');
+
+      // Meta
+      const meta = document.getElementById('metaRow');
+      meta.innerHTML = '';
+      if (r.platform !== 'manual') {
+        meta.innerHTML += `<span class="platform-badge badge-${r.platform}">${r.platform}</span>`;
+      }
+      if (r.channel) meta.innerHTML += `<span class="meta-item"><b>${r.channel}</b></span>`;
+      if (r.videoTitle && r.videoTitle !== 'Manual Input') meta.innerHTML += `<span class="meta-item">${r.videoTitle}</span>`;
+
+      // Stats
+      document.getElementById('statWords').textContent = r.wordCount;
+      document.getElementById('statDuration').textContent = r.estimatedSeconds + 's';
+      document.getElementById('statTarget').textContent = getSettings().targetSeconds + 's';
+      document.getElementById('statCost').textContent = '$' + (r.totalCost || 0).toFixed(4);
+
+      // Sections
+      document.getElementById('hookText').value = r.sections.hook;
+      document.getElementById('bodyText').value = r.sections.body;
+      document.getElementById('ctaText').value = r.sections.cta;
+      recalc();
+
+      // Alt hooks
+      if (r.hookAlternatives && r.hookAlternatives.length > 0) {
+        document.getElementById('altHooksWrap').classList.remove('hidden');
+        document.getElementById('altHooksList').innerHTML = r.hookAlternatives
+          .map(h => `<div class="alt-hook" onclick="swapHook(this)">${h}</div>`).join('');
+      } else {
+        document.getElementById('altHooksWrap').classList.add('hidden');
+      }
+
+      // Sidebar: footage
+      renderList('footageList', r.backgroundFootage);
+      renderList('graphicsList', r.graphicsNeeded);
+      renderList('notesList', r.productionNotes);
+
+      // Timeline
+      renderTimeline(r.timeline);
+    }
+
+    function recalc() {
+      const hook = document.getElementById('hookText').value;
+      const body = document.getElementById('bodyText').value;
+      const cta = document.getElementById('ctaText').value;
+
+      const hwc = countWords(hook), bwc = countWords(body), cwc = countWords(cta);
+      const twc = hwc + bwc + cwc;
+      const hs = (hwc / WPS).toFixed(1), bs = (bwc / WPS).toFixed(1), cs = (cwc / WPS).toFixed(1);
+      const ts = (twc / WPS).toFixed(1);
+
+      document.getElementById('hookMeta').textContent = `${hwc} words · ~${hs}s`;
+      document.getElementById('bodyMeta').textContent = `${bwc} words · ~${bs}s`;
+      document.getElementById('ctaMeta').textContent = `${cwc} words · ~${cs}s`;
+      document.getElementById('statWords').textContent = twc;
+      document.getElementById('statDuration').textContent = ts + 's';
+
+      // Rebuild timeline from current text
+      if (currentResult) {
+        const footage = currentResult.backgroundFootage || [];
+        const tl = buildClientTimeline({ hook, body, cta }, footage);
+        renderTimeline(tl);
+      }
+    }
+
+    function countWords(t) { return t.replace(/\[(?:GFX|STAT):.*?\]/g, '').split(/\s+/).filter(Boolean).length; }
+
+    function buildClientTimeline(sections, footage) {
+      const fps = 30;
+      const parts = [
+        { id: 'hook', label: 'HOOK', text: sections.hook },
+        { id: 'body', label: 'BODY', text: sections.body },
+        { id: 'cta', label: 'CTA', text: sections.cta },
+      ];
+      let cursor = 0;
+      const clips = parts.map((p, i) => {
+        const wc = countWords(p.text);
+        const dur = wc / WPS;
+        const startSec = Math.round(cursor * 100) / 100;
+        const endSec = Math.round((cursor + dur) * 100) / 100;
+        cursor += dur;
+        return {
+          id: p.id, section: p.id, label: p.label,
+          startSec, endSec, durationSec: Math.round(dur * 100) / 100,
+          startFrame: Math.round(startSec * fps), endFrame: Math.round(endSec * fps),
+          durationFrames: Math.round(dur * fps),
+          text: p.text, wordCount: wc,
+          footage: footage[i] || '',
+          overlays: (p.text.match(/\[(GFX|STAT):.*?\]/g) || []),
+        };
+      });
+      return { fps: 30, totalDurationSec: Math.round(cursor * 100) / 100, totalFrames: Math.round(cursor * fps), clips };
+    }
+
+    function renderTimeline(tl) {
+      if (!tl || !tl.clips) return;
+      const total = tl.totalDurationSec || 1;
+      const bar = document.getElementById('timelineBar');
+      bar.innerHTML = tl.clips.map(c => {
+        const pct = (c.durationSec / total * 100).toFixed(1);
+        const cls = c.id === 'hook' ? 'tl-hook' : c.id === 'body' ? 'tl-body' : 'tl-cta';
+        return `<div class="tl-segment ${cls}" style="width:${pct}%">${c.label}</div>`;
+      }).join('');
+
+      const clips = document.getElementById('timelineClips');
+      clips.innerHTML = tl.clips.map(c => `
+        <div class="tl-clip">
+          <div class="tl-clip-header">
+            <span class="tl-clip-label">${c.label}</span>
+            <span class="tl-clip-time">${c.startSec.toFixed(1)}s → ${c.endSec.toFixed(1)}s (${c.durationFrames}f)</span>
+          </div>
+          <div class="tl-clip-detail">${c.wordCount} words · Frames ${c.startFrame}–${c.endFrame}${c.footage ? ' · ' + c.footage : ''}</div>
+          ${c.overlays.length ? '<div class="tl-clip-detail" style="color:#f59e0b">Overlays: ' + c.overlays.join(', ') + '</div>' : ''}
+        </div>
+      `).join('');
+    }
+
+    function renderList(id, items) {
+      const el = document.getElementById(id);
+      if (!items || items.length === 0) { el.innerHTML = '<li style="color:#333">None</li>'; return; }
+      el.innerHTML = items.map(i => `<li>${i}</li>`).join('');
+    }
+
+    function swapHook(el) {
+      document.getElementById('hookText').value = el.textContent;
+      recalc();
+    }
+
+    function copyScript() {
+      const h = document.getElementById('hookText').value;
+      const b = document.getElementById('bodyText').value;
+      const c = document.getElementById('ctaText').value;
+      navigator.clipboard.writeText(`[HOOK]\n${h}\n\n[BODY]\n${b}\n\n[CTA]\n${c}`);
+    }
+
+    function getTimelineJSON() {
+      const hook = document.getElementById('hookText').value;
+      const body = document.getElementById('bodyText').value;
+      const cta = document.getElementById('ctaText').value;
+      const footage = currentResult?.backgroundFootage || [];
+      return buildClientTimeline({ hook, body, cta }, footage);
+    }
+
+    function copyTimeline() {
+      navigator.clipboard.writeText(JSON.stringify(getTimelineJSON(), null, 2));
+    }
+
+    function downloadTimeline() {
+      const blob = new Blob([JSON.stringify(getTimelineJSON(), null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'editing-timeline.json';
+      a.click();
+    }
+
+    async function sendToVideoEngine() {
+      const hook = document.getElementById('hookText').value;
+      const body = document.getElementById('bodyText').value;
+      const cta = document.getElementById('ctaText').value;
+      const fullScript = hook + ' ' + body + ' ' + cta;
+
+      // Extract player names from the script (capitalized multi-word names)
+      const namePattern = /(?:^|\s)([A-Z][a-z]+ [A-Z][a-z]+(?:\s[A-Z][a-z]+)?)/g;
+      const players = [...new Set([...fullScript.matchAll(namePattern)].map(m => m[1].trim()))];
+
+      const settings = getSettings();
+      const title = currentResult?.videoTitle || 'Sports Picks';
+      const date = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+
+      // Redirect to dashboard with params
+      const params = new URLSearchParams({
+        script: fullScript,
+        title,
+        date,
+        handle: '@novig',
+        players: players.join(','),
+      });
+      window.location.href = '/?fromScripter=1&' + params.toString();
+    }
+
+    function showError(msg) { const el = document.getElementById('errorMsg'); el.textContent = msg; el.classList.remove('hidden'); }
+    function hideError() { document.getElementById('errorMsg').classList.add('hidden'); }
+    function updateCostBadge() { document.getElementById('costBadge').textContent = 'Session: $' + sessionCost.toFixed(3); }
+  </script>
+</body>
+</html>
