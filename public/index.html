@@ -374,6 +374,36 @@
     .studio-btn:hover { border-color: var(--green); color: var(--green); }
 
     /* Scripter link */
+    /* Tab bar */
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+    }
+    .tab-btn {
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--green); border-bottom-color: var(--green); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    .scripter-iframe {
+      width: 100%;
+      height: calc(100vh - 110px);
+      border: none;
+      background: var(--bg);
+    }
+
     .scripter-link {
       display: inline-block;
       color: var(--muted);
@@ -400,6 +430,15 @@
       <span id="version-label">v1.0</span>
     </div>
   </div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('engine')">Video Engine</button>
+    <button class="tab-btn" onclick="switchTab('scripter')">Script Machine</button>
+  </div>
+
+  <!-- Tab: Video Engine -->
+  <div class="tab-content active" id="tab-engine">
 
   <!-- Main 2-column layout -->
   <div class="main">
@@ -489,7 +528,7 @@
         </div>
 
         <button class="generate-btn" id="generate-btn" onclick="generateVideo()">Generate Video</button>
-        <a href="/scripter.html" class="scripter-link">Open Script Machine &rarr;</a>
+        <button class="scripter-link" onclick="switchTab('scripter')" style="background:none;border:none;cursor:pointer;">Open Script Machine &rarr;</button>
       </div>
     </div>
 
@@ -525,6 +564,22 @@
       </div>
     </div>
   </div>
+
+  </div><!-- /tab-engine -->
+
+  <!-- Tab: Script Machine -->
+  <div class="tab-content" id="tab-scripter">
+    <iframe src="/scripter.html" class="scripter-iframe" id="scripter-frame"></iframe>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.getElementById('tab-' + tab).classList.add('active');
+      document.querySelector('.tab-btn[onclick*="' + tab + '"]').classList.add('active');
+    }
+  </script>
 
   <script>
     // ── Hook Bank ──

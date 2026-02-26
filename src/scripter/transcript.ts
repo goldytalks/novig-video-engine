@@ -30,6 +30,66 @@ function detectPlatform(url: string): "youtube" | "instagram" | "twitter" | "man
   return "manual";
 }
 
+// XML Caption Parser — handles both manual <text> and ASR <p><s> formats
+function decodeEntities(s: string): string {
+  return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#39;/g, "'").replace(/&quot;/g, '"').replace(/\n/g, " ");
+}
+
+function parseCaptionXml(xml: string): string | null {
+  // Format 1: Manual captions — <text>words</text>
+  const textMatches = [...xml.matchAll(/<text[^>]*>(.*?)<\/text>/gs)];
+  if (textMatches.length > 0) {
+    const t = textMatches.map((m) => decodeEntities(m[1])).join(" ").trim();
+    if (t.length > 10) return t;
+  }
+  // Format 2: ASR captions — <p><s>word</s></p>
+  const pMatches = [...xml.matchAll(/<p [^>]*>([\s\S]*?)<\/p>/gs)];
+  if (pMatches.length > 0) {
+    const words: string[] = [];
+    for (const pm of pMatches) {
+      const sMatches = [...pm[1].matchAll(/<s[^>]*>(.*?)<\/s>/gs)];
+      for (const sm of sMatches) {
+        const w = decodeEntities(sm[1]).trim();
+        if (w) words.push(w);
+      }
+    }
+    const t = words.join(" ").trim();
+    if (t.length > 10) return t;
+  }
+  return null;
+}
+
+// Method 0: Innertube ANDROID client (best for Shorts + auto-captions)
+async function tryInnertubeAndroid(videoId: string): Promise<string | null> {
+  try {
+    console.log("  [Transcript] Trying Innertube ANDROID client...");
+    const res = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        videoId,
+        context: {
+          client: { clientName: "ANDROID", clientVersion: "19.09.37", hl: "en", gl: "US", androidSdkVersion: 30 },
+        },
+      }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+    if (!tracks || tracks.length === 0) return null;
+    const track = tracks.find((t: any) => t.languageCode === "en") || tracks[0];
+    const capRes = await fetch(track.baseUrl);
+    const xml = await capRes.text();
+    if (!xml || xml.length < 50) return null;
+    const text = parseCaptionXml(xml);
+    if (text) console.log(`  [Transcript] Innertube ANDROID success: ${text.length} chars`);
+    return text;
+  } catch (err: any) {
+    console.log(`  [Transcript] Innertube ANDROID failed: ${err.message}`);
+    return null;
+  }
+}
+
 // Method 1: youtube-transcript package (captions)
 async function tryYoutubeTranscript(videoId: string): Promise<string | null> {
   try {
@@ -146,7 +206,8 @@ export async function extractTranscript(
   const meta = await fetchYouTubeMeta(videoId);
 
   // Try methods in order
-  let text = await tryYoutubeTranscript(videoId);
+  let text = await tryInnertubeAndroid(videoId);
+  if (!text) text = await tryYoutubeTranscript(videoId);
   if (!text) text = await tryGeminiNative(videoId);
 
   if (!text) {
