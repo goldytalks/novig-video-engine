@@ -1,6 +1,10 @@
 import React from "react";
-import { useCurrentFrame, interpolate, Video, staticFile } from "remotion";
+import { useCurrentFrame, interpolate, staticFile } from "remotion";
+import { Video } from "@remotion/media";
+import { loadFont } from "@remotion/google-fonts/Anton";
 import type { BRollSlot } from "../types";
+
+const { fontFamily } = loadFont();
 
 type BRollProps = {
   slots: BRollSlot[];
@@ -9,9 +13,11 @@ type BRollProps = {
 const PlaceholderCard: React.FC<{ slot: BRollSlot }> = ({ slot }) => {
   const frame = useCurrentFrame();
 
-  const gradientPosition = interpolate(frame % 120, [0, 60, 120], [0, 100, 0], {
-    extrapolateRight: "clamp",
-  });
+  const pulseOpacity = interpolate(
+    Math.sin((frame / 60) * Math.PI * 2),
+    [-1, 1],
+    [0.7, 1.0]
+  );
 
   return (
     <div
@@ -21,71 +27,41 @@ const PlaceholderCard: React.FC<{ slot: BRollSlot }> = ({ slot }) => {
         left: 0,
         width: "100%",
         height: "100%",
-        backgroundColor: "#111",
+        backgroundColor: "#000000",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
       }}
     >
-      {/* Animated gradient overlay */}
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          background: `linear-gradient(${gradientPosition * 3.6}deg, rgba(0,255,0,0.03) 0%, rgba(0,255,0,0.08) 50%, rgba(0,255,0,0.03) 100%)`,
-        }}
-      />
-
       {/* Label text */}
       <div
         style={{
-          fontFamily: "Anton, sans-serif",
-          fontSize: 90,
+          fontFamily,
+          fontSize: 80,
           color: "#00FF00",
           textAlign: "center",
           textTransform: "uppercase",
-          zIndex: 1,
-          padding: "0 40px",
+          padding: "0 60px",
           lineHeight: 1.1,
+          opacity: pulseOpacity,
         }}
       >
-        {slot.label}
+        {slot.label} BROLL HERE
       </div>
 
-      {slot.playerName && (
-        <div
-          style={{
-            fontFamily: "sans-serif",
-            fontSize: 32,
-            color: "rgba(255,255,255,0.4)",
-            marginTop: 16,
-            zIndex: 1,
-          }}
-        >
-          {slot.playerName}
-        </div>
-      )}
-
-      {/* Corner tag */}
+      {/* Slot ID in bottom-right */}
       <div
         style={{
           position: "absolute",
-          top: 24,
-          right: 24,
+          bottom: 120,
+          right: 32,
           fontFamily: "monospace",
           fontSize: 14,
-          color: "rgba(0,255,0,0.5)",
-          border: "1px solid rgba(0,255,0,0.3)",
-          padding: "4px 10px",
-          borderRadius: 4,
-          zIndex: 1,
+          color: "rgba(255,255,255,0.35)",
         }}
       >
-        B-ROLL PLACEHOLDER
+        {slot.id}
       </div>
     </div>
   );

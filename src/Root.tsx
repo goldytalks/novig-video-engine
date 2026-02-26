@@ -1,3 +1,4 @@
+import React from "react";
 import { Composition } from "remotion";
 import { SportsVideo } from "./compositions/SportsVideo";
 import type { SportsVideoProps } from "./types";

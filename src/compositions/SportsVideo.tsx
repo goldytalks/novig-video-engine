@@ -1,5 +1,5 @@
 import React from "react";
-import { useCurrentFrame, useVideoConfig, staticFile } from "remotion";
+import { staticFile } from "remotion";
 import { Audio } from "@remotion/media";
 import { BRoll } from "../components/BRoll";
 import { Sidebar } from "../components/Sidebar";
