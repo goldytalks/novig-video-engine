@@ -5,6 +5,7 @@ import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import axios from "axios";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import { renderVideo } from "./pipeline/render";
 import { scripterOutputToVideoInput } from "./scripterConnector";
 import { extractTranscript } from "./scripter/transcript";
@@ -13,7 +14,7 @@ import type { VideoInput } from "./types";
 import type { ScripterSettings } from "./scripter/types";
 
 const app = express();
-const isProd = process.env.NODE_ENV === "production";
+const isProd = process.env.NODE_ENV === "production" || !!process.env.RAILWAY_STATIC_URL;
 const PORT = process.env.PORT || 3000;
 
 // CORS
@@ -23,6 +24,8 @@ app.use(
       "https://novig-scripter.vercel.app",
       "http://localhost:3000",
       "http://localhost:3001",
+      /\.railway\.app$/,
+      /\.vercel\.app$/,
     ],
   })
 );
@@ -32,15 +35,15 @@ app.use(express.json({ limit: "10mb" }));
 app.use(express.static(path.join(process.cwd(), "public")));
 
 // --- Render history (in-memory, last 10) ---
-type RenderRecord = {
+interface RenderRecord {
   id: string;
   title: string;
-  date: string;
+  script: string;
+  hookId?: string;
+  createdAt: Date;
+  durationSeconds: number;
   filePath: string;
-  createdAt: string;
-  durationMs: number;
-  fileSize: number;
-};
+}
 const renderHistory: RenderRecord[] = [];
 
 function addToHistory(record: RenderRecord) {
@@ -60,9 +63,9 @@ function validateEnv() {
   for (const key of keys) {
     const val = process.env[key];
     if (val && val.length > 5) {
-      console.log(`  ✅ ${key}: set`);
+      console.log(`  OK ${key}: set`);
     } else {
-      console.log(`  ⚠️  ${key}: not set`);
+      console.log(`  WARN ${key}: not set`);
     }
   }
 }
@@ -83,22 +86,36 @@ app.get("/health", (_req, res) => {
 app.get("/config", (_req, res) => {
   res.json({
     status: "ok",
-    endpoints: ["/render", "/render-from-script", "/render-from-url", "/renders/:id", "/history", "/api/generate"],
-    cors: ["https://novig-scripter.vercel.app"],
+    version: "1.0.0",
+    environment: process.env.NODE_ENV || "development",
     studioAvailable: !isProd,
+    endpoints: ["/health", "/config", "/render", "/render-from-script", "/renders", "/renders/:id", "/studio"],
+    cors: ["novig-scripter.vercel.app", "*.railway.app", "*.vercel.app"],
   });
 });
 
 // Render history list
+app.get("/renders", (_req, res) => {
+  res.json(
+    renderHistory.map((r) => ({
+      id: r.id,
+      title: r.title,
+      createdAt: r.createdAt,
+      durationSeconds: r.durationSeconds,
+      hookId: r.hookId,
+    }))
+  );
+});
+
+// Backward compat: /history -> same as /renders
 app.get("/history", (_req, res) => {
   res.json(
     renderHistory.map((r) => ({
       id: r.id,
       title: r.title,
-      date: r.date,
       createdAt: r.createdAt,
-      durationMs: r.durationMs,
-      fileSize: r.fileSize,
+      durationSeconds: r.durationSeconds,
+      hookId: r.hookId,
     }))
   );
 });
@@ -115,25 +132,42 @@ app.get("/renders/:id", (req, res) => {
   fs.createReadStream(record.filePath).pipe(res);
 });
 
-// Helper: render and respond
-async function doRender(input: VideoInput, res: express.Response) {
-  const startTime = Date.now();
-  const outputPath = await renderVideo(input);
-  const elapsed = Date.now() - startTime;
-  const stat = fs.statSync(outputPath);
+// Delete a past render
+app.delete("/renders/:id", (req, res) => {
+  const idx = renderHistory.findIndex((r) => r.id === req.params.id);
+  if (idx === -1) {
+    res.status(404).json({ error: "Render not found" });
+    return;
+  }
+  const record = renderHistory[idx];
+  if (fs.existsSync(record.filePath)) {
+    fs.unlinkSync(record.filePath);
+  }
+  renderHistory.splice(idx, 1);
+  res.json({ ok: true, id: record.id });
+});
 
+// Helper: render and respond
+async function doRender(input: VideoInput, res: express.Response, hookId?: string) {
+  const startTime = Date.now();
   const id = crypto.randomUUID().slice(0, 8);
+  const outputDir = path.join(process.cwd(), "output");
+  const outputPath = path.join(outputDir, `${id}.mp4`);
+
+  await renderVideo(input, outputPath);
+  const elapsed = Date.now() - startTime;
+
   addToHistory({
     id,
     title: input.title,
-    date: input.date,
+    script: typeof input.script === "string" ? input.script : JSON.stringify(input.script),
+    hookId,
+    createdAt: new Date(),
+    durationSeconds: Math.round(elapsed / 1000),
     filePath: outputPath,
-    createdAt: new Date().toISOString(),
-    durationMs: elapsed,
-    fileSize: stat.size,
   });
 
-  console.log(`  Completed in ${(elapsed / 1000).toFixed(1)}s → ${outputPath} (id: ${id})`);
+  console.log(`  Completed in ${(elapsed / 1000).toFixed(1)}s -> ${outputPath} (id: ${id})`);
 
   res.setHeader("Content-Type", "video/mp4");
   res.setHeader("Content-Disposition", `attachment; filename="novig-${id}.mp4"`);
@@ -148,7 +182,7 @@ app.post("/render", async (req, res) => {
     res.status(400).json({ error: "Invalid VideoInput: missing script or title" });
     return;
   }
-  console.log(`\n[${new Date().toISOString()}] POST /render — "${input.title}"`);
+  console.log(`\n[${new Date().toISOString()}] POST /render -- "${input.title}"`);
   try {
     await doRender(input, res);
   } catch (err: any) {
@@ -159,16 +193,16 @@ app.post("/render", async (req, res) => {
 
 // Render from scripter output
 app.post("/render-from-script", async (req, res) => {
-  const { script, title, date, handle, players } = req.body;
+  const { script, title, date, handle, players, hookId } = req.body;
   if (!script) {
     res.status(400).json({ error: "Missing 'script' field" });
     return;
   }
-  console.log(`\n[${new Date().toISOString()}] POST /render-from-script — "${title || "untitled"}"`);
+  console.log(`\n[${new Date().toISOString()}] POST /render-from-script -- "${title || "untitled"}"`);
   try {
     const videoInput = scripterOutputToVideoInput({ script, title, date, handle, players });
     console.log(`  Generated ${videoInput.broll.length} b-roll slots, ${videoInput.script.length} segments`);
-    await doRender(videoInput, res);
+    await doRender(videoInput, res, hookId);
   } catch (err: any) {
     console.error("  Render failed:", err.message);
     res.status(500).json({ error: "Render failed", message: err.message });
@@ -182,7 +216,7 @@ app.post("/render-from-url", async (req, res) => {
     res.status(400).json({ error: "Missing 'scripterUrl' field" });
     return;
   }
-  console.log(`\n[${new Date().toISOString()}] POST /render-from-url — ${scripterUrl}`);
+  console.log(`\n[${new Date().toISOString()}] POST /render-from-url -- ${scripterUrl}`);
   try {
     const { data } = await axios.get(scripterUrl);
     const videoInput = scripterOutputToVideoInput({
@@ -212,7 +246,7 @@ app.post("/api/generate", async (req, res) => {
     return;
   }
 
-  console.log(`\n[${new Date().toISOString()}] POST /api/generate — url: ${url || "(manual)"}`);
+  console.log(`\n[${new Date().toISOString()}] POST /api/generate -- url: ${url || "(manual)"}`);
 
   try {
     // Step 1: Extract transcript
@@ -239,8 +273,28 @@ app.post("/api/generate", async (req, res) => {
   }
 });
 
+// --- Studio proxy (dev only) ---
+if (!isProd) {
+  app.use(
+    "/studio",
+    createProxyMiddleware({
+      target: "http://localhost:3001",
+      changeOrigin: true,
+      ws: true,
+      on: {
+        error: (_err: any, _req: any, res: any) => {
+          if (res.writeHead) {
+            res.writeHead(502);
+            res.end("Remotion Studio not running. Run: npx remotion studio");
+          }
+        },
+      },
+    })
+  );
+}
+
 // --- Startup ---
-console.log("\n🎬 Novig Video Engine — Starting up...\n");
+console.log("\nNovig Video Engine -- Starting up...\n");
 validateEnv();
 console.log(`\n  Environment: ${isProd ? "production" : "development"}`);
 
@@ -250,12 +304,13 @@ for (const dir of ["output", "public/assets"]) {
   if (!fs.existsSync(full)) fs.mkdirSync(full, { recursive: true });
 }
 
-if (process.env.RAILWAY_STATIC_URL) {
-  console.log(`  Railway URL: ${process.env.RAILWAY_STATIC_URL}`);
+const railwayUrl = process.env.RAILWAY_STATIC_URL;
+if (railwayUrl) {
+  console.log(`  Live at: https://${railwayUrl}`);
 }
 
 app.listen(PORT, () => {
-  console.log(`\n🚀 Server running on port ${PORT}`);
+  console.log(`\nServer running on port ${PORT}`);
   console.log(`   Dashboard: http://localhost:${PORT}`);
   console.log(`   Health:    http://localhost:${PORT}/health`);
   console.log(`   Config:    http://localhost:${PORT}/config`);
@@ -263,7 +318,7 @@ app.listen(PORT, () => {
   console.log(`   Script:    POST http://localhost:${PORT}/render-from-script`);
   console.log(`   URL:       POST http://localhost:${PORT}/render-from-url`);
   if (!isProd) {
-    console.log(`   Studio:    http://localhost:3001 (run npm run studio separately)`);
+    console.log(`   Studio:    http://localhost:${PORT}/studio`);
   }
   console.log("");
 });

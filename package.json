@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npx concurrently \"npm start\" \"npx remotion studio src/index.ts\"",
+    "dev": "concurrently \"npx tsx src/server.ts\" \"npx remotion studio --port 3001\"",
     "render": "npx tsx scripts/run.ts",
     "studio": "npx remotion studio src/index.ts",
     "start": "npx tsx src/server.ts",
@@ -24,6 +24,7 @@
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",
     "express": "^4.22.1",
+    "http-proxy-middleware": "^3.0.5",
     "openai": "^6.25.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

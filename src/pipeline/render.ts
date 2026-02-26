@@ -6,7 +6,7 @@ import { generateAudio } from "./generateAudio";
 import { resolveAssets } from "./resolveAssets";
 import type { VideoInput, SportsVideoProps } from "../types";
 
-export async function renderVideo(input: VideoInput): Promise<string> {
+export async function renderVideo(input: VideoInput, outputOverride?: string): Promise<string> {
   console.log("\n=== NOVIG VIDEO ENGINE ===\n");
   console.log("Step 1: Combining script segments...");
   const fullScript = input.script.map((s) => s.text).join(" ");
@@ -75,8 +75,7 @@ export async function renderVideo(input: VideoInput): Promise<string> {
     fs.mkdirSync(outputDir, { recursive: true });
   }
 
-  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-  const outputPath = path.join(outputDir, `video_${timestamp}.mp4`);
+  const outputPath = outputOverride || path.join(outputDir, `video_${new Date().toISOString().replace(/[:.]/g, "-")}.mp4`);
 
   console.log("\nStep 7: Rendering video...");
   await renderMedia({
