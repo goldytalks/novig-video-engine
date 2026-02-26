@@ -5,316 +5,815 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Novig Video Engine</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      background: #0a0a0a;
-      color: #e0e0e0;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-      min-height: 100vh;
+    :root {
+      --bg: #0a0a0a;
+      --surface: #111;
+      --border: #1f1f1f;
+      --green: #00FF00;
+      --text: #fff;
+      --muted: #666;
     }
-    .container { max-width: 800px; margin: 0 auto; padding: 24px 20px; }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
 
     /* Header */
     .header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 0; border-bottom: 1px solid #1a1a1a; margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
     }
-    .header h1 { font-size: 20px; font-weight: 700; letter-spacing: 1px; }
-    .header h1 span { color: #00FF00; }
-    .header-status {
-      display: flex; align-items: center; gap: 12px; font-size: 13px; color: #666;
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
     }
-    .status-dot {
-      width: 8px; height: 8px; border-radius: 50%; background: #00FF00;
-      box-shadow: 0 0 6px #00FF00; animation: pulse 2s ease-in-out infinite;
+    .header-left .bolt { color: var(--green); }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 13px;
+      color: var(--muted);
     }
-    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    .live-dot.offline { background: #ff4444; box-shadow: 0 0 6px #ff4444; animation: none; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--green); }
+      50% { opacity: 0.4; box-shadow: 0 0 2px var(--green); }
+    }
 
-    /* Form */
-    .panel {
-      background: #111; border: 1px solid #1a1a1a; border-radius: 12px;
-      padding: 24px; margin-bottom: 20px;
+    /* Main layout */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
     }
-    .panel h2 { font-size: 14px; font-weight: 600; color: #888; text-transform: uppercase;
-      letter-spacing: 1px; margin-bottom: 16px; }
-    label { display: block; font-size: 13px; color: #888; margin-bottom: 6px; font-weight: 500; }
+    @media (max-width: 768px) {
+      .main { grid-template-columns: 1fr; }
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .card-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* Hook Preview */
+    .hook-preview-box {
+      background: rgba(0, 255, 0, 0.03);
+      border: 1px solid rgba(0, 255, 0, 0.15);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(0, 255, 0, 0.04);
+      transition: box-shadow 0.3s;
+    }
+    .hook-preview-box:hover {
+      box-shadow: 0 0 30px rgba(0, 255, 0, 0.08);
+    }
+    #hook-preview {
+      color: var(--green);
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+    .hook-meta {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 12px;
+    }
+    .hook-meta span { opacity: 0.7; }
+
+    /* Hook controls */
+    .hook-controls {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .hook-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .hook-btn:hover { border-color: var(--green); color: var(--green); }
+    .hook-btn.locked { border-color: var(--green); color: var(--green); background: rgba(0,255,0,0.08); }
+
+    /* Pill buttons */
+    .pill-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .pill-group label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      width: 100%;
+      margin-bottom: 4px;
+    }
+    .pill {
+      padding: 5px 12px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      user-select: none;
+    }
+    .pill:hover { border-color: #444; color: var(--text); }
+    .pill.active {
+      border-color: var(--green);
+      color: var(--green);
+      background: rgba(0, 255, 0, 0.06);
+    }
+
+    /* Form inputs */
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
     textarea, input[type="text"] {
-      width: 100%; background: #0a0a0a; border: 1px solid #222; border-radius: 8px;
-      color: #e0e0e0; padding: 12px; font-size: 14px; font-family: inherit;
-      outline: none; transition: border-color 0.2s;
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: system-ui, -apple-system, sans-serif;
+      outline: none;
+      transition: border-color 0.2s;
     }
-    textarea:focus, input[type="text"]:focus { border-color: #00FF00; }
-    textarea { min-height: 140px; resize: vertical; margin-bottom: 16px; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
-    .form-group { margin-bottom: 12px; }
-    .btn {
-      width: 100%; padding: 14px; border: none; border-radius: 8px; cursor: pointer;
-      font-size: 16px; font-weight: 700; letter-spacing: 0.5px; transition: all 0.2s;
+    textarea:focus, input[type="text"]:focus { border-color: var(--green); }
+    textarea {
+      min-height: 120px;
+      resize: vertical;
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 13px;
+      line-height: 1.6;
     }
-    .btn-primary {
-      background: #00FF00; color: #000; margin-top: 8px;
+    .word-count {
+      font-size: 11px;
+      color: var(--muted);
+      text-align: right;
+      margin-top: 4px;
+      margin-bottom: 12px;
     }
-    .btn-primary:hover { background: #33ff33; transform: translateY(-1px); }
-    .btn-primary:disabled { background: #1a3a1a; color: #444; cursor: not-allowed; transform: none; }
-    .btn-secondary {
-      background: #1a1a1a; color: #ccc; border: 1px solid #333; margin-top: 8px;
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
     }
-    .btn-secondary:hover { background: #222; }
+    .form-group { margin-bottom: 0; }
+    .day-input {
+      max-width: 160px;
+    }
 
-    /* Progress */
-    .progress-bar-bg {
-      width: 100%; height: 6px; background: #1a1a1a; border-radius: 3px;
-      overflow: hidden; margin: 12px 0;
+    /* Generate button */
+    .generate-btn {
+      width: 100%;
+      padding: 14px;
+      border: none;
+      border-radius: 8px;
+      background: var(--green);
+      color: #000;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      transition: all 0.2s;
+      margin-top: 8px;
     }
-    .progress-bar-fill {
-      height: 100%; background: #00FF00; border-radius: 3px;
-      transition: width 0.3s; box-shadow: 0 0 8px rgba(0,255,0,0.4);
+    .generate-btn:hover { background: #33ff33; transform: translateY(-1px); }
+    .generate-btn:disabled {
+      background: #1a3a1a;
+      color: #444;
+      cursor: not-allowed;
+      transform: none;
     }
-    .status-text { font-size: 14px; color: #888; }
-    .status-text.success { color: #00FF00; }
-    .status-text.error { color: #ff4444; }
-    .elapsed { font-size: 12px; color: #555; margin-top: 4px; }
 
-    /* History */
+    /* Status Panel */
+    .status-content {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 15px;
+      padding: 12px 0;
+    }
+    .status-icon { font-size: 18px; }
+    .spin { display: inline-block; animation: spin 1.2s linear infinite; }
+    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .progress-bar {
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: var(--green);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.5s ease;
+      box-shadow: 0 0 8px rgba(0, 255, 0, 0.4);
+    }
+    .status-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .status-btn {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .status-btn:hover { border-color: var(--green); color: var(--green); }
+    .status-btn.primary {
+      background: var(--green);
+      color: #000;
+      border-color: var(--green);
+    }
+    .status-btn.primary:hover { background: #33ff33; }
+
+    /* History table */
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th { text-align: left; color: #555; font-weight: 500; padding: 8px 0;
-      border-bottom: 1px solid #1a1a1a; }
-    td { padding: 10px 0; border-bottom: 1px solid #111; }
-    .dl-btn {
-      background: none; border: 1px solid #00FF00; color: #00FF00; padding: 4px 12px;
-      border-radius: 4px; cursor: pointer; font-size: 12px;
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
     }
-    .dl-btn:hover { background: rgba(0,255,0,0.1); }
-    .empty-state { text-align: center; color: #444; padding: 24px; font-size: 13px; }
+    td {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(31, 31, 31, 0.5);
+      color: #ccc;
+    }
+    tr:hover td { color: var(--text); }
+    .dl-link {
+      color: var(--green);
+      text-decoration: none;
+      font-size: 14px;
+      opacity: 0.7;
+      transition: opacity 0.15s;
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+    .dl-link:hover { opacity: 1; }
+    .delete-btn {
+      color: #ff4444;
+      text-decoration: none;
+      font-size: 14px;
+      opacity: 0.4;
+      transition: opacity 0.15s;
+      cursor: pointer;
+      background: none;
+      border: none;
+      margin-left: 8px;
+    }
+    .delete-btn:hover { opacity: 1; }
 
-    /* Studio link */
-    .studio-link {
-      display: inline-block; margin-top: 12px; color: #00FF00; font-size: 13px;
-      text-decoration: none; opacity: 0.7;
+    /* Right column */
+    .right-col { display: flex; flex-direction: column; gap: 20px; }
+
+    /* Studio section */
+    .studio-section { display: none; }
+    .studio-btn {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-decoration: none;
+      display: block;
+      text-align: center;
     }
-    .studio-link:hover { opacity: 1; }
-    .hidden { display: none; }
+    .studio-btn:hover { border-color: var(--green); color: var(--green); }
+
+    /* Scripter link */
+    .scripter-link {
+      display: inline-block;
+      color: var(--muted);
+      font-size: 12px;
+      text-decoration: none;
+      transition: color 0.15s;
+      margin-top: 4px;
+    }
+    .scripter-link:hover { color: var(--green); }
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- Header -->
-    <div class="header">
-      <h1><span>⚡</span> NOVIG VIDEO ENGINE</h1>
-      <div class="header-status">
-        <div class="status-dot" id="statusDot"></div>
-        <span id="statusLabel">Connecting...</span>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <span class="bolt">&#9889;</span> NOVIG VIDEO ENGINE
+    </div>
+    <div class="header-right">
+      <div class="live-badge">
+        <div class="live-dot" id="live-dot"></div>
+        <span id="live-label">Connecting...</span>
+      </div>
+      <span id="version-label">v1.0</span>
+    </div>
+  </div>
+
+  <!-- Main 2-column layout -->
+  <div class="main">
+
+    <!-- LEFT COLUMN -->
+    <div class="left-col">
+
+      <!-- Hook Preview -->
+      <div class="card">
+        <div class="card-title">Hook Preview</div>
+        <div class="hook-preview-box">
+          <div id="hook-preview"></div>
+          <div class="hook-meta">
+            <span>id: <strong id="hook-id"></strong></span>
+            <span>tone: <strong id="hook-tone"></strong></span>
+          </div>
+        </div>
+
+        <div class="hook-controls">
+          <button class="hook-btn" id="prev-btn" onclick="prevHook()">&#9664; Prev</button>
+          <button class="hook-btn" id="shuffle-btn" onclick="shuffleHook()">&#8635; Shuffle</button>
+          <button class="hook-btn" id="lock-btn" onclick="toggleLock()">&#128275; Lock</button>
+        </div>
+
+        <!-- Sport pills -->
+        <div class="pill-group">
+          <label>Sport</label>
+          <span class="pill active" data-sport="NBA" onclick="setSport(this)">NBA</span>
+          <span class="pill" data-sport="NFL" onclick="setSport(this)">NFL</span>
+          <span class="pill" data-sport="MLB" onclick="setSport(this)">MLB</span>
+          <span class="pill" data-sport="NHL" onclick="setSport(this)">NHL</span>
+        </div>
+
+        <!-- Day + Count row -->
+        <div style="display:flex;gap:12px;align-items:flex-end;margin-bottom:12px;">
+          <div>
+            <label class="form-label">Day</label>
+            <input type="text" id="day-val" class="day-input" value="" oninput="renderHookPreview()">
+          </div>
+          <div class="pill-group" style="margin-bottom:0;">
+            <label>Count</label>
+            <span class="pill" data-count="1" onclick="setCount(this)">1</span>
+            <span class="pill" data-count="2" onclick="setCount(this)">2</span>
+            <span class="pill active" data-count="3" onclick="setCount(this)">3</span>
+            <span class="pill" data-count="4" onclick="setCount(this)">4</span>
+          </div>
+        </div>
+
+        <!-- Tone filter -->
+        <div class="pill-group">
+          <label>Tone</label>
+          <span class="pill active" data-tone="" onclick="setTone(this)">All</span>
+          <span class="pill" data-tone="hype" onclick="setTone(this)">Hype</span>
+          <span class="pill" data-tone="controversial" onclick="setTone(this)">Controversial</span>
+          <span class="pill" data-tone="confident" onclick="setTone(this)">Confident</span>
+          <span class="pill" data-tone="casual" onclick="setTone(this)">Casual</span>
+          <span class="pill" data-tone="authoritative" onclick="setTone(this)">Authoritative</span>
+        </div>
+      </div>
+
+      <!-- Script Input -->
+      <div class="card">
+        <div class="card-title">Script Input</div>
+        <label class="form-label" for="script">Narration Script</label>
+        <textarea id="script" placeholder="Paste your narration script here..."></textarea>
+        <div class="word-count" id="word-count">0 words</div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="title">Title</label>
+            <input type="text" id="title" value="NBA Picks" placeholder="NBA Wednesday Picks">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="date">Date</label>
+            <input type="text" id="date" value="">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="handle">Handle</label>
+            <input type="text" id="handle" value="@novig">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="players">Players (comma-separated)</label>
+            <input type="text" id="players" placeholder="Steph Curry, LeBron James" value="">
+          </div>
+        </div>
+
+        <button class="generate-btn" id="generate-btn" onclick="generateVideo()">Generate Video</button>
+        <a href="/scripter.html" class="scripter-link">Open Script Machine &rarr;</a>
       </div>
     </div>
 
-    <!-- Script Input -->
-    <div class="panel">
-      <h2>Script Input</h2>
-      <label for="script">Script</label>
-      <textarea id="script" placeholder="Paste your narration script here...">The Cavs are sweeping everyone in their path right now. Donovan Mitchell is playing out of his mind. Tonight against the Lakers, we're backing Cleveland to cover the spread. Take the Cavs minus four. This is a lock.</textarea>
+    <!-- RIGHT COLUMN -->
+    <div class="right-col">
 
-      <div class="form-row">
-        <div class="form-group">
-          <label for="title">Title</label>
-          <input type="text" id="title" value="NBA Wednesday Picks">
-        </div>
-        <div class="form-group">
-          <label for="date">Date</label>
-          <input type="text" id="date" value="">
-        </div>
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="handle">Handle</label>
-          <input type="text" id="handle" value="@novig">
-        </div>
-        <div class="form-group">
-          <label for="players">Players (comma-separated)</label>
-          <input type="text" id="players" placeholder="Steph Curry, LeBron James" value="Donovan Mitchell">
+      <!-- Status Panel -->
+      <div class="card">
+        <div class="card-title">Status</div>
+        <div id="status-panel">
+          <div class="status-content">
+            <span class="status-icon">&#9889;</span> Ready to render
+          </div>
         </div>
       </div>
 
-      <button class="btn btn-primary" id="renderBtn" onclick="startRender()">🎬 Generate Video</button>
-    </div>
+      <!-- Render History -->
+      <div class="card" style="flex:1;">
+        <div class="card-title">Render History</div>
+        <table>
+          <thead>
+            <tr><th>Time</th><th>Title</th><th>Duration</th><th></th></tr>
+          </thead>
+          <tbody id="history-body">
+            <tr><td colspan="4" style="color:var(--muted);text-align:center;padding:20px;">No renders yet</td></tr>
+          </tbody>
+        </table>
+      </div>
 
-    <!-- Progress -->
-    <div class="panel" id="progressPanel" style="display:none;">
-      <h2>Render Status</h2>
-      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressFill" style="width:0%"></div></div>
-      <div class="status-text" id="statusText">Starting render...</div>
-      <div class="elapsed" id="elapsedText"></div>
-      <button class="btn btn-secondary hidden" id="downloadBtn" onclick="downloadLatest()">⬇ Download MP4</button>
-      <button class="btn btn-secondary hidden" id="resetBtn" onclick="resetForm()">Render Another</button>
-    </div>
-
-    <!-- History -->
-    <div class="panel">
-      <h2>Render History</h2>
-      <table>
-        <thead><tr><th>Time</th><th>Title</th><th>Render Time</th><th></th></tr></thead>
-        <tbody id="historyBody">
-        </tbody>
-      </table>
-      <div class="empty-state" id="emptyHistory">No renders yet this session</div>
-    </div>
-
-    <!-- Links -->
-    <div style="display:flex;gap:16px;align-items:center;margin-top:8px;">
-      <a href="/scripter.html" style="color:#00FF00;font-size:13px;text-decoration:none;opacity:0.7;">📝 Script Machine</a>
-      <a class="studio-link hidden" id="studioLink" href="http://localhost:3001" target="_blank" style="color:#00FF00;font-size:13px;text-decoration:none;opacity:0.7;">🎨 Remotion Studio</a>
+      <!-- Studio (dev only) -->
+      <div class="card studio-section" id="studio-section">
+        <a href="http://localhost:3001" target="_blank" class="studio-btn">Open Remotion Studio (dev)</a>
+      </div>
     </div>
   </div>
 
   <script>
-    // Auto-fill today's date
-    const dateInput = document.getElementById('date');
-    if (!dateInput.value) {
-      dateInput.value = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    // ── Hook Bank ──
+    const HOOKS = [
+      { id: 'official-best', text: "It's official: {sport} {day} has the best {count} picks of the season", tone: 'hype' },
+      { id: 'ready', text: "You ready? Because {sport} {day} just handed us {count} of the cleanest spots of the year", tone: 'hype' },
+      { id: 'what-if-told-you', text: "What if I told you {sport} {day} has {count} picks with almost zero variance?", tone: 'hype' },
+      { id: 'controversial-sweep', text: "This may be controversial: but {sport} {day} is the EASIEST path to a {count}-0 sweep with these {count} picks", tone: 'controversial' },
+      { id: 'controversial-sweat-free', text: "This may be controversial: but these {count} picks for the {sport} on {day} are sweat free", tone: 'controversial' },
+      { id: 'controversial-primetime', text: "This may be controversial: but this {sport} primetime game tonight is WAY too easy to predict", tone: 'controversial' },
+      { id: 'marry-picks', text: "I might marry these {count} picks for the {sport} on {day}", tone: 'confident' },
+      { id: 'lock-of-week', text: "I don't say this lightly \u2014 this {sport} {day} card might be the lock of the week", tone: 'confident' },
+      { id: 'seen-enough', text: "I've seen enough. {sport} {day} is a {count}-leg parlay special and it's not close", tone: 'confident' },
+      { id: 'not-missing', text: "If you miss these {count} {sport} picks on {day}, that's on you", tone: 'authoritative' },
+      { id: 'numbers-dont-lie', text: "The numbers don't lie \u2014 {sport} on {day} is setting up the cleanest {count}-pick slate we've seen all month", tone: 'authoritative' },
+      { id: 'be-honest', text: "Be honest \u2014 you already knew {sport} {day} was going to go this way", tone: 'casual' },
+      { id: 'not-gonna-lie', text: "Not gonna lie, these {count} {sport} picks for {day} basically printed themselves", tone: 'casual' },
+      { id: 'woke-up-chose', text: "Woke up, chose violence, and these {count} {sport} picks on {day} are the proof", tone: 'casual' },
+    ];
+
+    // ── Hook State ──
+    let currentHookIndex = 0;
+    let hookLocked = false;
+    let selectedTone = null;
+    let currentSport = 'NBA';
+    let currentCount = '3';
+
+    function getFilteredHooks() {
+      return selectedTone ? HOOKS.filter(function(h) { return h.tone === selectedTone; }) : HOOKS;
     }
 
-    let latestRenderId = null;
-    let renderTimer = null;
+    function fillHook(text) {
+      var sport = currentSport;
+      var day = document.getElementById('day-val').value || 'Thursday';
+      var count = currentCount;
+      return text.replace(/{sport}/g, sport).replace(/{day}/g, day).replace(/{count}/g, count);
+    }
 
-    // Check server health on load
-    async function checkHealth() {
-      try {
-        const res = await fetch('/health');
-        const data = await res.json();
-        document.getElementById('statusDot').style.background = '#00FF00';
-        document.getElementById('statusLabel').textContent = 'Live';
-
-        // Check if studio available
-        const cfgRes = await fetch('/config');
-        const cfg = await cfgRes.json();
-        if (cfg.studioAvailable) {
-          document.getElementById('studioLink').classList.remove('hidden');
-        }
-      } catch {
-        document.getElementById('statusDot').style.background = '#ff4444';
-        document.getElementById('statusLabel').textContent = 'Offline';
+    function renderHookPreview() {
+      var hooks = getFilteredHooks();
+      if (hooks.length === 0) {
+        document.getElementById('hook-preview').textContent = '(No hooks match this tone)';
+        document.getElementById('hook-id').textContent = '-';
+        document.getElementById('hook-tone').textContent = '-';
+        return;
       }
+      var hook = hooks[currentHookIndex % hooks.length];
+      document.getElementById('hook-preview').textContent = '\u201C' + fillHook(hook.text) + '\u201D';
+      document.getElementById('hook-id').textContent = hook.id;
+      document.getElementById('hook-tone').textContent = hook.tone;
+    }
+
+    function shuffleHook() {
+      if (hookLocked) return;
+      var hooks = getFilteredHooks();
+      if (hooks.length === 0) return;
+      currentHookIndex = (currentHookIndex + 1) % hooks.length;
+      renderHookPreview();
+    }
+
+    function prevHook() {
+      if (hookLocked) return;
+      var hooks = getFilteredHooks();
+      if (hooks.length === 0) return;
+      currentHookIndex = (currentHookIndex - 1 + hooks.length) % hooks.length;
+      renderHookPreview();
+    }
+
+    function toggleLock() {
+      hookLocked = !hookLocked;
+      var btn = document.getElementById('lock-btn');
+      btn.textContent = hookLocked ? '\uD83D\uDD12 Locked' : '\uD83D\uDD13 Lock';
+      btn.classList.toggle('locked', hookLocked);
+    }
+
+    function setSport(el) {
+      document.querySelectorAll('[data-sport]').forEach(function(p) { p.classList.remove('active'); });
+      el.classList.add('active');
+      currentSport = el.dataset.sport;
+      renderHookPreview();
+    }
+
+    function setCount(el) {
+      document.querySelectorAll('[data-count]').forEach(function(p) { p.classList.remove('active'); });
+      el.classList.add('active');
+      currentCount = el.dataset.count;
+      renderHookPreview();
+    }
+
+    function setTone(el) {
+      document.querySelectorAll('[data-tone]').forEach(function(p) { p.classList.remove('active'); });
+      el.classList.add('active');
+      selectedTone = el.dataset.tone || null;
+      currentHookIndex = 0;
+      renderHookPreview();
+    }
+
+    // ── Status Panel ──
+    var timer = { interval: null, start: null };
+
+    function setStatus(state, extra) {
+      extra = extra || {};
+      var panel = document.getElementById('status-panel');
+      clearInterval(timer.interval);
+
+      if (state === 'idle') {
+        panel.innerHTML = '<div class="status-content"><span class="status-icon">&#9889;</span> Ready to render</div>';
+      } else if (state === 'rendering') {
+        timer.start = Date.now();
+        panel.innerHTML = '<div class="status-content"><span class="status-icon spin">&#9203;</span> Rendering... <span id="elapsed">0s</span></div><div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>';
+        timer.interval = setInterval(function() {
+          var s = Math.floor((Date.now() - timer.start) / 1000);
+          var el = document.getElementById('elapsed');
+          if (el) el.textContent = s + 's';
+          // Smooth asymptotic progress
+          var pct = Math.min(95, (1 - Math.exp(-s / 25)) * 100);
+          var fill = document.getElementById('progress-fill');
+          if (fill) fill.style.width = pct + '%';
+        }, 1000);
+      } else if (state === 'done') {
+        var s = Math.floor((Date.now() - timer.start) / 1000);
+        panel.innerHTML = '<div class="status-content"><span class="status-icon">&#9989;</span> Done in ' + s + 's</div>' +
+          '<div class="progress-bar"><div class="progress-fill" style="width:100%"></div></div>' +
+          '<div class="status-actions">' +
+          '<button class="status-btn primary" onclick="triggerDownload(\'' + (extra.blobUrl || '') + '\', \'' + (extra.filename || '') + '\')">Download MP4</button>' +
+          '<button class="status-btn" onclick="setStatus(\'idle\')">Render Another</button>' +
+          '</div>';
+        loadHistory();
+      } else if (state === 'error') {
+        panel.innerHTML = '<div class="status-content"><span class="status-icon">&#10060;</span> Error: ' + (extra.message || 'Unknown error') + '</div>' +
+          '<div class="status-actions"><button class="status-btn" onclick="setStatus(\'idle\')">Dismiss</button></div>';
+      }
+    }
+
+    // ── Generate Video ──
+    async function generateVideo() {
+      var hooks = getFilteredHooks();
+      var hook = hooks.length > 0 ? hooks[currentHookIndex % hooks.length] : HOOKS[0];
+
+      var body = {
+        script: document.getElementById('script').value,
+        title: document.getElementById('title').value || 'NBA Picks',
+        date: document.getElementById('date').value,
+        handle: document.getElementById('handle').value || '@novig',
+        players: document.getElementById('players').value.split(',').map(function(p) { return p.trim(); }).filter(Boolean),
+        hookId: hook.id
+      };
+
+      if (!body.script.trim()) {
+        setStatus('error', { message: 'Please enter a script' });
+        return;
+      }
+
+      document.getElementById('generate-btn').disabled = true;
+      setStatus('rendering');
+
+      try {
+        var res = await fetch('/render-from-script', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (!res.ok) {
+          var err = await res.json().catch(function() { return { message: res.statusText }; });
+          setStatus('error', { message: err.message || 'Render failed' });
+          return;
+        }
+
+        var blob = await res.blob();
+        var blobUrl = URL.createObjectURL(blob);
+        var filename = 'novig-' + body.title.toLowerCase().replace(/\s+/g, '-') + '.mp4';
+
+        var a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        a.click();
+
+        setStatus('done', { blobUrl: blobUrl, filename: filename });
+      } catch (err) {
+        setStatus('error', { message: err.message });
+      } finally {
+        document.getElementById('generate-btn').disabled = false;
+      }
+    }
+
+    function triggerDownload(blobUrl, filename) {
+      if (!blobUrl) return;
+      var a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      a.click();
+    }
+
+    // ── History ──
+    async function loadHistory() {
+      var res = await fetch('/renders').catch(function() { return null; });
+      if (!res || !res.ok) {
+        var legacy = await fetch('/history').catch(function() { return null; });
+        if (!legacy || !legacy.ok) return;
+        var data = await legacy.json();
+        renderHistoryTable(data);
+        return;
+      }
+      var data = await res.json();
+      renderHistoryTable(data);
+    }
+
+    function renderHistoryTable(history) {
+      var tbody = document.getElementById('history-body');
+      if (!history.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:20px">No renders yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = history.map(function(r) {
+        return '<tr>' +
+          '<td>' + new Date(r.createdAt).toLocaleTimeString() + '</td>' +
+          '<td>' + (r.title || 'Untitled') + '</td>' +
+          '<td>' + (r.durationSeconds || '\u2014') + 's</td>' +
+          '<td>' +
+            '<a href="/renders/' + r.id + '" download class="dl-link">&#11015;</a>' +
+            '<button onclick="deleteRender(\'' + r.id + '\')" class="delete-btn">&#128465;</button>' +
+          '</td></tr>';
+      }).join('');
+    }
+
+    async function deleteRender(id) {
+      await fetch('/renders/' + id, { method: 'DELETE' });
       loadHistory();
     }
 
-    async function loadHistory() {
-      try {
-        const res = await fetch('/history');
-        const history = await res.json();
-        const tbody = document.getElementById('historyBody');
-        const empty = document.getElementById('emptyHistory');
-        if (history.length === 0) { empty.style.display = ''; tbody.innerHTML = ''; return; }
-        empty.style.display = 'none';
-        tbody.innerHTML = history.map(r => {
-          const time = new Date(r.createdAt).toLocaleTimeString();
-          const dur = (r.durationMs / 1000).toFixed(0) + 's';
-          const size = (r.fileSize / 1024 / 1024).toFixed(1) + ' MB';
-          return `<tr>
-            <td>${time}</td>
-            <td>${r.title}</td>
-            <td>${dur} (${size})</td>
-            <td><button class="dl-btn" onclick="window.location='/renders/${r.id}'">Download</button></td>
-          </tr>`;
-        }).join('');
-      } catch {}
+    // ── Word Counter ──
+    function updateWordCount() {
+      var text = document.getElementById('script').value.trim();
+      var count = text ? text.split(/\s+/).length : 0;
+      document.getElementById('word-count').textContent = count + ' word' + (count !== 1 ? 's' : '');
     }
+    document.getElementById('script').addEventListener('input', updateWordCount);
 
-    async function startRender() {
-      const script = document.getElementById('script').value.trim();
-      if (!script) { alert('Please enter a script'); return; }
+    // ── Init ──
 
-      const body = {
-        script,
-        title: document.getElementById('title').value || 'Untitled',
-        date: document.getElementById('date').value,
-        handle: document.getElementById('handle').value || '@novig',
-        players: document.getElementById('players').value.split(',').map(s => s.trim()).filter(Boolean),
-      };
+    // Auto-fill date
+    document.getElementById('date').value = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 
-      // UI state: rendering
-      document.getElementById('renderBtn').disabled = true;
-      const panel = document.getElementById('progressPanel');
-      panel.style.display = '';
-      document.getElementById('progressFill').style.width = '0%';
-      document.getElementById('statusText').className = 'status-text';
-      document.getElementById('statusText').textContent = 'Rendering... (~30 seconds)';
-      document.getElementById('downloadBtn').classList.add('hidden');
-      document.getElementById('resetBtn').classList.add('hidden');
+    // Auto-fill day for hooks
+    var days = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+    document.getElementById('day-val').value = days[new Date().getDay()];
 
-      let elapsed = 0;
-      renderTimer = setInterval(() => {
-        elapsed++;
-        document.getElementById('elapsedText').textContent = `${elapsed}s elapsed`;
-        // Fake progress that approaches but never reaches 100%
-        const pct = Math.min(95, (1 - Math.exp(-elapsed / 25)) * 100);
-        document.getElementById('progressFill').style.width = pct + '%';
-      }, 1000);
-
-      try {
-        const res = await fetch('/render-from-script', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-
-        clearInterval(renderTimer);
-
-        if (!res.ok) {
-          const err = await res.json();
-          throw new Error(err.message || 'Render failed');
-        }
-
-        latestRenderId = res.headers.get('X-Render-Id');
-        document.getElementById('progressFill').style.width = '100%';
-        document.getElementById('statusText').textContent = '✅ Video ready!';
-        document.getElementById('statusText').className = 'status-text success';
-        document.getElementById('downloadBtn').classList.remove('hidden');
-        document.getElementById('resetBtn').classList.remove('hidden');
-
-        // Auto-download
-        const blob = await res.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `novig-${latestRenderId || 'video'}.mp4`;
-        a.click();
-        URL.revokeObjectURL(url);
-
-        loadHistory();
-      } catch (err) {
-        clearInterval(renderTimer);
-        document.getElementById('progressFill').style.width = '100%';
-        document.getElementById('progressFill').style.background = '#ff4444';
-        document.getElementById('statusText').textContent = '❌ Error: ' + err.message;
-        document.getElementById('statusText').className = 'status-text error';
-        document.getElementById('resetBtn').classList.remove('hidden');
-      }
-
-      document.getElementById('renderBtn').disabled = false;
-    }
-
-    function downloadLatest() {
-      if (latestRenderId) window.location = '/renders/' + latestRenderId;
-    }
-
-    function resetForm() {
-      document.getElementById('progressPanel').style.display = 'none';
-      document.getElementById('progressFill').style.background = '#00FF00';
-      document.getElementById('renderBtn').disabled = false;
-    }
-
-    // Auto-fill from scripter URL params
-    const params = new URLSearchParams(window.location.search);
+    // URL params from scripter
+    var params = new URLSearchParams(window.location.search);
     if (params.get('fromScripter')) {
       if (params.get('script')) document.getElementById('script').value = params.get('script');
       if (params.get('title')) document.getElementById('title').value = params.get('title');
       if (params.get('date')) document.getElementById('date').value = params.get('date');
       if (params.get('handle')) document.getElementById('handle').value = params.get('handle');
       if (params.get('players')) document.getElementById('players').value = params.get('players');
-      // Clean URL
       window.history.replaceState({}, '', '/');
     }
 
+    // Health check
+    async function checkHealth() {
+      try {
+        var res = await fetch('/health');
+        await res.json();
+        document.getElementById('live-dot').classList.remove('offline');
+        document.getElementById('live-label').textContent = 'Live';
+
+        var cfgRes = await fetch('/config');
+        var cfg = await cfgRes.json();
+        if (cfg.studioAvailable) {
+          document.getElementById('studio-section').style.display = 'block';
+        }
+      } catch (e) {
+        document.getElementById('live-dot').classList.add('offline');
+        document.getElementById('live-label').textContent = 'Offline';
+      }
+    }
+
+    // Studio section for localhost
+    if (window.location.hostname === 'localhost') {
+      document.getElementById('studio-section').style.display = 'block';
+    }
+
+    // Boot
+    renderHookPreview();
+    updateWordCount();
     checkHealth();
+    loadHistory();
+    setInterval(loadHistory, 30000);
   </script>
 </body>
 </html>
