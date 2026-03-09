@@ -192,15 +192,15 @@ async function fetchYouTubeMeta(videoId: string): Promise<{ title: string; chann
   }
 }
 
-// Method 4: yt-dlp + OpenAI Whisper (works for IG Reels, Twitter/X, YT Shorts)
-async function tryYtDlpWhisper(url: string): Promise<string | null> {
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (!openaiKey) {
-    console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: OPENAI_API_KEY not set`);
+// Method 4: yt-dlp + Groq Whisper (free, no quota limits)
+async function tryGroqWhisper(url: string): Promise<string | null> {
+  const groqKey = process.env.GROQ_API_KEY;
+  if (!groqKey) {
+    console.log(`[Transcript] Method: GroqWhisper — Result: failed — Reason: GROQ_API_KEY not set`);
     return null;
   }
 
-  console.log(`[Transcript] Method: YtDlpWhisper — attempting for url=${url}`);
+  console.log(`[Transcript] Method: GroqWhisper — attempting for url=${url}`);
 
   const tmpDir = os.tmpdir();
   const baseName = `novig_audio_${Date.now()}`;
@@ -219,44 +219,44 @@ async function tryYtDlpWhisper(url: string): Promise<string | null> {
     const matched = files.find((f) => f.startsWith(baseName));
     if (matched) {
       audioPath = path.join(tmpDir, matched);
-      console.log(`[Transcript] Method: YtDlpWhisper — yt-dlp produced file: ${matched}`);
+      console.log(`[Transcript] Method: GroqWhisper — yt-dlp produced file: ${matched}`);
     } else {
-      console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: yt-dlp produced no audio file in ${tmpDir}`);
+      console.log(`[Transcript] Method: GroqWhisper — Result: failed — Reason: yt-dlp produced no audio file in ${tmpDir}`);
       return null;
     }
 
-    // Send to Whisper API
+    // Send to Groq Whisper API (OpenAI-compatible)
     const formData = new FormData();
     const audioBlob = new Blob([fs.readFileSync(audioPath)], { type: "audio/mpeg" });
     formData.append("file", audioBlob, "audio.mp3");
-    formData.append("model", "whisper-1");
+    formData.append("model", "whisper-large-v3-turbo");
     formData.append("response_format", "text");
     formData.append("language", "en");
 
-    const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    const whisperRes = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
       method: "POST",
-      headers: { Authorization: `Bearer ${openaiKey}` },
+      headers: { Authorization: `Bearer ${groqKey}` },
       body: formData,
     });
 
     if (!whisperRes.ok) {
-      console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: Whisper API returned HTTP ${whisperRes.status}`);
+      const errBody = await whisperRes.text();
+      console.log(`[Transcript] Method: GroqWhisper — Result: failed — Reason: Groq API returned HTTP ${whisperRes.status}: ${errBody}`);
       return null;
     }
 
     const text = (await whisperRes.text()).trim();
     if (text.length < 10) {
-      console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: Whisper returned too-short text (${text.length} chars)`);
+      console.log(`[Transcript] Method: GroqWhisper — Result: failed — Reason: too-short text (${text.length} chars)`);
       return null;
     }
 
-    console.log(`[Transcript] Method: YtDlpWhisper — Result: success — Reason: ${text.length} chars extracted`);
+    console.log(`[Transcript] Method: GroqWhisper — Result: success — Reason: ${text.length} chars extracted`);
     return text;
   } catch (err: any) {
-    console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: ${err.message}`);
+    console.log(`[Transcript] Method: GroqWhisper — Result: failed — Reason: ${err.message}`);
     return null;
   } finally {
-    // Cleanup temp file
     if (audioPath) {
       try { fs.unlinkSync(audioPath); } catch {}
     }
@@ -291,14 +291,14 @@ export async function extractTranscript(
   const videoId = extractVideoId(url) || "";
 
   if (platform !== "youtube") {
-    // For IG, Twitter, or unknown — route straight to yt-dlp + Whisper
-    console.log(`[Transcript] Platform: ${platform} — routing directly to YtDlpWhisper`);
+    // For IG, Twitter, or unknown — route straight to GroqWhisper
+    console.log(`[Transcript] Platform: ${platform} — routing directly to GroqWhisper`);
     const meta = { title: url, channel: platform };
 
-    const text = await tryYtDlpWhisper(url);
+    const text = await tryGroqWhisper(url);
     if (!text) {
       throw new Error(
-        `Could not transcribe ${platform} video. Make sure yt-dlp is installed (brew install yt-dlp) and OPENAI_API_KEY is set. You can also paste the transcript manually.`
+        `Could not transcribe ${platform} video. Make sure yt-dlp is installed (brew install yt-dlp) and GROQ_API_KEY is set. You can also paste the transcript manually.`
       );
     }
 
@@ -322,18 +322,19 @@ export async function extractTranscript(
   let text: string | null = null;
 
   if (isShorts) {
-    // Shorts: Gemini can watch YouTube natively — no download needed, run it first
-    console.log(`[Transcript] Detected YouTube Shorts URL — running GeminiNative first`);
-    text = await tryGeminiNative(videoId);
+    // Shorts: captions almost never available — run GroqWhisper first
+    console.log(`[Transcript] Detected YouTube Shorts URL — running GroqWhisper first`);
+    text = await tryGroqWhisper(url);
     if (!text) text = await tryInnertubeAndroid(videoId);
     if (!text) text = await tryYoutubeTranscript(videoId);
+    if (!text) text = await tryGeminiNative(videoId);
   } else {
-    // Regular YouTube: try caption methods first, Whisper as final fallback
+    // Regular YouTube: try caption methods first, GroqWhisper as final fallback
     console.log(`[Transcript] Detected regular YouTube URL — trying caption methods first`);
     text = await tryInnertubeAndroid(videoId);
     if (!text) text = await tryYoutubeTranscript(videoId);
     if (!text) text = await tryGeminiNative(videoId);
-    if (!text) text = await tryYtDlpWhisper(url);
+    if (!text) text = await tryGroqWhisper(url);
   }
 
   if (!text) {
