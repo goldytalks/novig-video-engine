@@ -148,6 +148,25 @@
     .list-plain li { font-size:12px; color:var(--text-mid); padding:4px 0; border-bottom:1px solid #111; font-family:var(--mono); }
     .list-plain li::before { content:"→ "; color:var(--green); }
 
+    /* B-Roll status */
+    .broll-card { margin-top:14px; }
+    .broll-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .broll-badge { display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:20px; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:0.5px; }
+    .broll-badge.hunting { background:rgba(245,158,11,0.12); color:var(--amber); border:1px solid rgba(245,158,11,0.3); }
+    .broll-badge.downloading { background:rgba(96,165,250,0.1); color:var(--blue); border:1px solid rgba(96,165,250,0.25); }
+    .broll-badge.ready { background:var(--green-dim); color:var(--green); border:1px solid var(--green-border); }
+    .broll-badge.error { background:rgba(255,68,68,0.08); color:var(--red); border:1px solid rgba(255,68,68,0.2); }
+    .broll-badge.idle { background:var(--bg); color:var(--text-dim); border:1px solid var(--border); }
+    .broll-spinner { width:8px; height:8px; border:1.5px solid currentColor; border-top-color:transparent; border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; }
+    .broll-clip { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #111; }
+    .broll-clip:last-child { border-bottom:none; }
+    .broll-clip-status { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+    .clip-downloaded { background:var(--green); }
+    .clip-downloading { background:var(--blue); animation:pulse 1.5s infinite; }
+    .clip-skipped, .clip-failed { background:var(--text-dim); }
+    .broll-clip-name { font-size:12px; font-family:var(--mono); color:var(--text-mid); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .broll-clip-url { font-size:10px; color:var(--text-dim); font-family:var(--mono); }
+
     /* Misc */
     .hidden { display:none !important; }
     .error-msg { color:var(--red); font-size:12px; font-family:var(--mono); margin-top:8px; padding:9px 12px; background:rgba(255,68,68,0.05); border:1px solid rgba(255,68,68,0.15); border-radius:5px; }
@@ -312,9 +331,17 @@
           </div>
         </div>
         <div class="card">
-          <div class="card-title">B-Roll Suggestions</div>
+          <div class="card-title">Script Suggestions</div>
           <ul class="list-plain" id="footageList"></ul>
         </div>
+      </div>
+
+      <div class="card broll-card" id="brollCard">
+        <div class="broll-header">
+          <div class="card-title" style="margin-bottom:0;">B-Roll Hunter</div>
+          <div class="broll-badge idle" id="brollBadge">IDLE</div>
+        </div>
+        <div id="brollClipList" style="color:var(--text-dim);font-size:12px;font-family:var(--mono);">Waiting for script generation...</div>
       </div>
     </div>
 
@@ -372,6 +399,65 @@
   let currentResult = null;
   let currentRenderId = null;
   let sessionCost = parseFloat(localStorage.getItem('nve_cost') || '0');
+  let brollPollInterval = null;
+
+  function startBRollPolling() {
+    if (brollPollInterval) clearInterval(brollPollInterval);
+    const badge = document.getElementById('brollBadge');
+    const list = document.getElementById('brollClipList');
+    badge.className = 'broll-badge hunting';
+    badge.innerHTML = '<div class="broll-spinner"></div> HUNTING';
+    list.textContent = 'Searching YouTube for clips...';
+
+    brollPollInterval = setInterval(async () => {
+      try {
+        const r = await fetch('/api/broll-status');
+        const d = await r.json();
+        updateBRollUI(d);
+        if (d.status === 'ready' || d.status === 'error') {
+          clearInterval(brollPollInterval);
+          brollPollInterval = null;
+        }
+      } catch {}
+    }, 3000);
+  }
+
+  function updateBRollUI(d) {
+    const badge = document.getElementById('brollBadge');
+    const list = document.getElementById('brollClipList');
+
+    const labels = { hunting: 'HUNTING', downloading: 'DOWNLOADING', ready: 'READY', error: 'ERROR', idle: 'IDLE' };
+    const spinning = d.status === 'hunting' || d.status === 'downloading';
+    badge.className = `broll-badge ${d.status}`;
+    badge.innerHTML = spinning ? `<div class="broll-spinner"></div> ${labels[d.status] || d.status.toUpperCase()}` : labels[d.status] || d.status.toUpperCase();
+
+    if (d.status === 'error') {
+      list.innerHTML = `<span style="color:var(--red)">${d.error || 'Unknown error'}</span>`;
+      return;
+    }
+
+    if (!d.clips || d.clips.length === 0) {
+      list.textContent = d.status === 'hunting' ? 'Searching YouTube for clips...' : 'No clips found.';
+      return;
+    }
+
+    const downloaded = d.clips.filter(c => c.status === 'downloaded').length;
+    const total = d.clips.length;
+    const summary = d.status === 'ready'
+      ? `<div style="font-size:11px;color:var(--green);font-family:var(--mono);margin-bottom:8px;">✓ ${downloaded}/${total} clips ready in broll/</div>`
+      : `<div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-bottom:8px;">${downloaded}/${total} downloaded...</div>`;
+
+    const items = d.clips.map(c => {
+      const dotClass = c.status === 'downloaded' ? 'clip-downloaded' : c.status === 'downloading' ? 'clip-downloading' : 'clip-skipped';
+      const label = c.status === 'downloaded' ? c.slug + '.mp4' : c.status === 'failed' ? c.visualNeed + ' (failed)' : c.status === 'skipped' ? c.visualNeed + ' (no clip found)' : c.visualNeed;
+      return `<div class="broll-clip">
+        <div class="broll-clip-status ${dotClass}"></div>
+        <div class="broll-clip-name">${label}</div>
+      </div>`;
+    }).join('');
+
+    list.innerHTML = summary + items;
+  }
 
   updateCostBadge();
   checkServer();
@@ -479,6 +565,7 @@
       buildScriptPage(currentResult);
       markDone(1);
       goTo(2);
+      startBRollPolling();
     } catch(e) { showErr('inputError', e.message); }
     finally { btn.disabled=false; btn.textContent='Generate Script →'; loading.classList.add('hidden'); }
   }

@@ -10,6 +10,9 @@ import { renderVideo } from "./pipeline/render";
 import { scripterOutputToVideoInput } from "./scripterConnector";
 import { extractTranscript } from "./scripter/transcript";
 import { generateScript } from "./scripter/generate";
+import { huntBRoll } from "./pipeline/brollHunter";
+import { downloadBRoll } from "./pipeline/brollDownloader";
+import type { DownloadResult } from "./pipeline/brollDownloader";
 import type { VideoInput } from "./types";
 import type { ScripterSettings } from "./scripter/types";
 
@@ -54,6 +57,71 @@ function addToHistory(record: RenderRecord) {
     if (old && fs.existsSync(old.filePath)) {
       fs.unlinkSync(old.filePath);
     }
+  }
+}
+
+// --- B-Roll state (in-memory, reset on each new generate) ---
+type BRollClipState = {
+  slug: string;
+  visualNeed: string;
+  url: string;
+  filePath: string | null;
+  status: "found" | "downloading" | "downloaded" | "failed" | "skipped";
+};
+
+type BRollState = {
+  status: "idle" | "hunting" | "downloading" | "ready" | "error";
+  clips: BRollClipState[];
+  lastUpdated: Date | null;
+  error?: string;
+};
+
+const brollState: BRollState = {
+  status: "idle",
+  clips: [],
+  lastUpdated: null,
+};
+
+async function runBRollPipeline(fullScript: string): Promise<void> {
+  try {
+    // Phase 1: Hunt
+    brollState.status = "hunting";
+    brollState.clips = [];
+    brollState.lastUpdated = new Date();
+    console.log("\n  [BRoll] Starting hunt phase...");
+
+    const huntResult = await huntBRoll(fullScript);
+
+    // Seed clip states from hunt results so UI shows found clips immediately
+    brollState.clips = huntResult.moments.map((m) => ({
+      slug: `${String(m.index + 1).padStart(2, "0")}-${m.visualNeed.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}`,
+      visualNeed: m.visualNeed,
+      url: m.topClip?.url || "",
+      filePath: null,
+      status: m.topClip ? "downloading" : "skipped",
+    }));
+    brollState.status = "downloading";
+    brollState.lastUpdated = new Date();
+
+    // Phase 2: Download
+    console.log("\n  [BRoll] Starting download phase...");
+    await downloadBRoll(huntResult, (result: DownloadResult) => {
+      const clip = brollState.clips.find((c) => c.slug === result.slug);
+      if (clip) {
+        clip.filePath = result.filePath;
+        clip.status = result.status === "success" ? "downloaded" : result.status === "skipped" ? "skipped" : "failed";
+        brollState.lastUpdated = new Date();
+      }
+    });
+
+    brollState.status = "ready";
+    brollState.lastUpdated = new Date();
+    console.log(`\n  [BRoll] Pipeline complete — ${brollState.clips.filter((c) => c.status === "downloaded").length}/${brollState.clips.length} clips downloaded`);
+  } catch (err: any) {
+    brollState.status = "error";
+    brollState.error = err.message;
+    brollState.lastUpdated = new Date();
+    console.error("  [BRoll] Pipeline failed:", err.message);
   }
 }
 
@@ -285,7 +353,9 @@ app.post("/api/generate", async (req, res) => {
     // Step 2: Generate script
     const result = await generateScript(transcriptResult.text, settings);
 
-    // Return full result
+    const fullScript = `${result.sections.hook} ${result.sections.body} ${result.sections.cta}`;
+
+    // Return full result immediately (don't wait for b-roll)
     res.json({
       ...result,
       videoTitle: transcriptResult.videoTitle,
@@ -294,10 +364,27 @@ app.post("/api/generate", async (req, res) => {
       platform: transcriptResult.platform,
       transcript: transcriptResult.text,
     });
+
+    // Kick off b-roll pipeline in background (non-blocking)
+    brollState.status = "hunting";
+    brollState.clips = [];
+    brollState.lastUpdated = new Date();
+    delete brollState.error;
+    runBRollPipeline(fullScript).catch(() => {/* already handled inside */});
   } catch (err: any) {
     console.error("  Script generation failed:", err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// --- B-Roll status ---
+app.get("/api/broll-status", (_req, res) => {
+  res.json({
+    status: brollState.status,
+    clips: brollState.clips,
+    lastUpdated: brollState.lastUpdated,
+    ...(brollState.error ? { error: brollState.error } : {}),
+  });
 });
 
 // --- Studio proxy (dev only) ---
