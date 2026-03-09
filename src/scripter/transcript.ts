@@ -322,12 +322,11 @@ export async function extractTranscript(
   let text: string | null = null;
 
   if (isShorts) {
-    // Shorts: try Whisper first (captions almost never available), then fall back to caption methods
-    console.log(`[Transcript] Detected YouTube Shorts URL — running YtDlpWhisper first`);
-    text = await tryYtDlpWhisper(url);
+    // Shorts: Gemini can watch YouTube natively — no download needed, run it first
+    console.log(`[Transcript] Detected YouTube Shorts URL — running GeminiNative first`);
+    text = await tryGeminiNative(videoId);
     if (!text) text = await tryInnertubeAndroid(videoId);
     if (!text) text = await tryYoutubeTranscript(videoId);
-    if (!text) text = await tryGeminiNative(videoId);
   } else {
     // Regular YouTube: try caption methods first, Whisper as final fallback
     console.log(`[Transcript] Detected regular YouTube URL — trying caption methods first`);
