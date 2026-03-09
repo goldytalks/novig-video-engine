@@ -21,46 +21,36 @@ function getOpenRouter(): OpenAI {
 }
 
 function buildSystemPrompt(settings: ScripterSettings): string {
-  const wordTarget = Math.round(settings.targetSeconds * WORDS_PER_SECOND);
-  const hookWords = Math.round(3 * WORDS_PER_SECOND);
-  const ctaWords = Math.round(4 * WORDS_PER_SECOND);
-  const bodyWords = wordTarget - hookWords - ctaWords;
+  const COMPETITORS = "DraftKings, FanDuel, BetMGM, Chalkboard, PrizePicks, Underdog, ESPN Bet, Caesars, PointsBet, BetRivers, SuperDraft, Sleeper, or any other competing app or sportsbook";
 
-  const styleGuide: Record<string, string> = {
-    hype: "High energy, bold claims, urgency, exclamation points. Like a confident friend texting you a lock.",
-    analytical:
-      "Data-driven, stat-heavy, measured confidence. Like a sharp analyst breaking down the numbers.",
-    casual:
-      "Conversational, relaxed, authentic. Like a buddy at the bar sharing a pick over beers.",
-  };
+  return `You are a minimal-edit script adapter for Novig — a zero-vig sports betting exchange.
 
-  return `You are an elite short-form sports betting script writer for Novig — a zero-vig sports betting exchange with the best odds in the industry.
+YOUR ONLY JOB is to take the source transcript and make TWO types of changes — nothing else:
 
-STYLE: ${settings.style.toUpperCase()} — ${styleGuide[settings.style]}
+1. BRAND SWAP: Replace any mention of ${COMPETITORS} with "Novig". Change only the brand name word(s). Do not change anything else in that sentence.
 
-STRUCTURE:
-- [HOOK] (~3 seconds, ~${hookWords} words): Must STOP THE SCROLL. Bold claim, FOMO, controversy, surprising stat. NEVER start with "Hey guys" or "What's up". Jump straight into the most compelling thing.
-- [BODY] (~${settings.targetSeconds - 7} seconds, ~${bodyWords} words): The meat. Preserve ALL picks, odds, teams, player names, and numbers from the source transcript. Never fabricate stats or picks. Add context, analysis, and confidence.
-- [CTA] (~4 seconds, ~${ctaWords} words): Always end with: "Stop leaving money on the table. Get the best odds on Novig — link in bio."
+2. CTA SWAP: Replace the final call-to-action sentence(s) — the part where the speaker plugs their sponsor link, promo code, or app download — with this Novig CTA: "Download Novig — zero vig, best lines anywhere."
 
-RULES:
-- Total target: ~${wordTarget} words (~${settings.targetSeconds} seconds at ${WORDS_PER_SECOND} words/sec)
-- Maximum 2 natural Novig mentions (including CTA)
-- Keep the same picks/teams/lines from the source — rewrite the DELIVERY not the CONTENT
+STRICT RULES — READ CAREFULLY:
+- DO NOT rewrite sentences. DO NOT improve the script. DO NOT add energy or hype.
+- DO NOT add words, remove words, or change sentence structure beyond the two swap types above.
+- DO NOT change the hook. Use the original opening line(s) verbatim, UNLESS they contain a competitor name.
+- DO NOT change tone, pacing, or word choice anywhere except the two swap types.
+- Keep every pick, stat, player name, team name, and number exactly as stated in the source.
+- The output should read as if the original creator said it — just with Novig instead of the competitor.
 ${settings.includeGraphics ? '- Mark key visual moments with [GFX: description] inline' : "- No graphics markers"}
 ${settings.includeStats ? '- Mark stats with [STAT: number/comparison] inline' : "- No stat markers"}
 
-OUTPUT FORMAT:
-First output the script in this exact format:
+STRUCTURE — split the (minimally edited) script into these labeled sections:
 
 [HOOK]
-(hook text here)
+(first 1-2 sentences of the original script, verbatim unless brand-swapped)
 
 [BODY]
-(body text here)
+(middle section verbatim, with only brand swaps if needed)
 
 [CTA]
-(cta text here)
+(replace the original sponsor plug with: "Download Novig — zero vig, best lines anywhere.")
 
 ---
 Then output a JSON block with EXACTLY this structure (valid JSON, no trailing commas):
@@ -75,7 +65,7 @@ function parseSections(raw: string): {
 } {
   const hookMatch = raw.match(/\[HOOK\]\s*\n([\s\S]*?)(?=\[BODY\])/i);
   const bodyMatch = raw.match(/\[BODY\]\s*\n([\s\S]*?)(?=\[CTA\])/i);
-  const ctaMatch = raw.match(/\[CTA\]\s*\n([\s\S]*?)(?=---|$)/i);
+  const ctaMatch = raw.match(/\[CTA\]\s*\n([\s\S]*?)(?=---|```|$)/i);
 
   const hook = hookMatch?.[1]?.trim() || "";
   const body = bodyMatch?.[1]?.trim() || "";
@@ -186,7 +176,7 @@ export async function generateScript(
 
   const systemPrompt = buildSystemPrompt(settings);
 
-  let userPrompt = `Here is the source transcript from a sports betting video. Rewrite it into a Novig-branded script following the structure above.\n\nSOURCE TRANSCRIPT:\n${transcript}`;
+  let userPrompt = `Here is the source transcript. Apply ONLY the two allowed changes (brand swap + CTA swap) and split into [HOOK]/[BODY]/[CTA] sections. Do not rewrite or improve anything else.\n\nSOURCE TRANSCRIPT:\n${transcript}`;
 
   if (settings.customHook) {
     userPrompt += `\n\nIMPORTANT: The user wants this EXACT hook used verbatim (do not change it):\n"${settings.customHook}"`;
