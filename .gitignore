@@ -4,3 +4,4 @@ output/
 .env
 public/assets/audio.mp3
 *.mp4
+broll/*.mp4
