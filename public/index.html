@@ -545,6 +545,25 @@
         </div>
       </div>
 
+      <!-- Transcription Tester -->
+      <div class="card">
+        <div class="card-title">Test Transcription</div>
+        <div style="display:flex;gap:8px;margin-bottom:12px;">
+          <input type="text" id="transcribe-url" placeholder="Paste YouTube/IG/Twitter URL..." style="flex:1;">
+          <button class="generate-btn" id="transcribe-btn" onclick="testTranscribe()" style="width:auto;padding:10px 20px;margin-top:0;">Transcribe</button>
+        </div>
+        <div id="transcribe-result" style="display:none;">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;">
+            <span id="transcribe-platform-badge" style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;"></span>
+            <span style="font-size:11px;color:var(--muted);" id="transcribe-method"></span>
+            <span style="font-size:11px;color:var(--muted);" id="transcribe-chars"></span>
+          </div>
+          <div id="transcribe-title-line" style="font-size:13px;font-weight:600;margin-bottom:6px;color:var(--text);"></div>
+          <div id="transcribe-text" style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:12px;color:#ccc;max-height:200px;overflow-y:auto;line-height:1.6;font-family:'SF Mono','Fira Code',monospace;white-space:pre-wrap;"></div>
+        </div>
+        <div id="transcribe-error" style="display:none;color:#ff4444;font-size:13px;padding:8px 0;"></div>
+      </div>
+
       <!-- Render History -->
       <div class="card" style="flex:1;">
         <div class="card-title">Render History</div>
@@ -818,6 +837,58 @@
       document.getElementById('word-count').textContent = count + ' word' + (count !== 1 ? 's' : '');
     }
     document.getElementById('script').addEventListener('input', updateWordCount);
+
+    // ── Transcription Tester ──
+    var platformColors = {
+      youtube: '#FF0000',
+      instagram: '#E1306C',
+      twitter: '#1DA1F2',
+      unknown: '#666'
+    };
+
+    async function testTranscribe() {
+      var url = document.getElementById('transcribe-url').value.trim();
+      if (!url) return;
+
+      document.getElementById('transcribe-btn').disabled = true;
+      document.getElementById('transcribe-btn').textContent = 'Transcribing...';
+      document.getElementById('transcribe-result').style.display = 'none';
+      document.getElementById('transcribe-error').style.display = 'none';
+
+      try {
+        var res = await fetch('/api/transcribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: url })
+        });
+
+        if (!res.ok) {
+          var err = await res.json().catch(function() { return { error: res.statusText }; });
+          document.getElementById('transcribe-error').textContent = err.error || 'Transcription failed';
+          document.getElementById('transcribe-error').style.display = 'block';
+          return;
+        }
+
+        var data = await res.json();
+        var platform = (data.platform || 'unknown').toLowerCase();
+        var badge = document.getElementById('transcribe-platform-badge');
+        badge.textContent = data.platform || 'Unknown';
+        badge.style.background = platformColors[platform] || platformColors.unknown;
+        badge.style.color = '#fff';
+
+        document.getElementById('transcribe-method').textContent = 'via ' + (data.method || '?');
+        document.getElementById('transcribe-chars').textContent = (data.charCount || 0) + ' chars';
+        document.getElementById('transcribe-title-line').textContent = data.videoTitle || '';
+        document.getElementById('transcribe-text').textContent = data.transcript || '(empty)';
+        document.getElementById('transcribe-result').style.display = 'block';
+      } catch (err) {
+        document.getElementById('transcribe-error').textContent = err.message;
+        document.getElementById('transcribe-error').style.display = 'block';
+      } finally {
+        document.getElementById('transcribe-btn').disabled = false;
+        document.getElementById('transcribe-btn').textContent = 'Transcribe';
+      }
+    }
 
     // ── Init ──
 
