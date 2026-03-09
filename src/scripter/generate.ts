@@ -8,10 +8,17 @@ import type {
 
 const WORDS_PER_SECOND = 2.8;
 
-const openrouter = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
+let _openrouter: OpenAI | null = null;
+
+function getOpenRouter(): OpenAI {
+  if (!_openrouter) {
+    _openrouter = new OpenAI({
+      baseURL: "https://openrouter.ai/api/v1",
+      apiKey: process.env.OPENROUTER_API_KEY || "placeholder",
+    });
+  }
+  return _openrouter;
+}
 
 function buildSystemPrompt(settings: ScripterSettings): string {
   const wordTarget = Math.round(settings.targetSeconds * WORDS_PER_SECOND);
@@ -185,7 +192,7 @@ export async function generateScript(
     userPrompt += `\n\nIMPORTANT: The user wants this EXACT hook used verbatim (do not change it):\n"${settings.customHook}"`;
   }
 
-  const response = await openrouter.chat.completions.create({
+  const response = await getOpenRouter().chat.completions.create({
     model: "anthropic/claude-sonnet-4",
     messages: [
       { role: "system", content: systemPrompt },
