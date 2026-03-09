@@ -89,7 +89,7 @@ app.get("/config", (_req, res) => {
     version: "1.0.0",
     environment: process.env.NODE_ENV || "development",
     studioAvailable: !isProd,
-    endpoints: ["/health", "/config", "/render", "/render-from-script", "/renders", "/renders/:id", "/studio"],
+    endpoints: ["/health", "/config", "/render", "/render-from-script", "/renders", "/renders/:id", "/api/transcribe", "/api/generate", "/studio"],
     cors: ["novig-scripter.vercel.app", "*.railway.app", "*.vercel.app"],
   });
 });
@@ -230,6 +230,33 @@ app.post("/render-from-url", async (req, res) => {
   } catch (err: any) {
     console.error("  Render failed:", err.message);
     res.status(500).json({ error: "Render failed", message: err.message });
+  }
+});
+
+// --- Standalone Transcription ---
+app.post("/api/transcribe", async (req, res) => {
+  const { url } = req.body;
+  if (!url) {
+    res.status(400).json({ error: "Missing url" });
+    return;
+  }
+
+  console.log(`\n[${new Date().toISOString()}] POST /api/transcribe -- ${url}`);
+
+  try {
+    const result = await extractTranscript(url);
+    res.json({
+      transcript: result.text,
+      platform: result.platform,
+      videoTitle: result.videoTitle,
+      channel: result.channel,
+      videoId: result.videoId,
+      method: result.method,
+      charCount: result.text.length,
+    });
+  } catch (err: any) {
+    console.error("  Transcription failed:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 
