@@ -29,21 +29,20 @@ export const Captions: React.FC<CaptionsProps> = ({ words }) => {
   const wordStartFrame = Math.floor(activeWord.start * fps);
   const framesSinceWordStart = frame - wordStartFrame;
 
-  // Pop-in spring animation
+  // Pop-in spring bounce animation
   const scale = spring({
     frame: framesSinceWordStart,
     fps,
-    config: { damping: 20, stiffness: 300 },
-    durationInFrames: 6,
+    config: { damping: 15, stiffness: 300 },
   });
 
-  const finalScale = 0.8 + scale * 0.2; // 0.8 → 1.0
+  const finalScale = 0.85 + scale * 0.15; // 0.85 → 1.0
 
   return (
     <div
       style={{
         position: "absolute",
-        bottom: "30%",
+        bottom: "25%",
         left: 0,
         right: 0,
         textAlign: "center",
