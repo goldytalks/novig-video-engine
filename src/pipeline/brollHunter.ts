@@ -1,29 +1,25 @@
 import OpenAI from "openai";
-import { exec } from "child_process";
-import { promisify } from "util";
-
-const execAsync = promisify(exec);
-
-export type BRollClip = {
-  id: string;
-  title: string;
-  url: string;
-};
 
 export type BRollMoment = {
   index: number;
-  scriptLine: string;
+  slugName: string;
   visualNeed: string;
   section: string;
   searchQuery: string;
-  clips: BRollClip[];
-  topClip: BRollClip | null;
 };
 
 export type HuntResult = {
   moments: BRollMoment[];
   generatedAt: Date;
 };
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 40);
+}
 
 function getOpenRouter(): OpenAI {
   return new OpenAI({
@@ -34,7 +30,6 @@ function getOpenRouter(): OpenAI {
 
 async function analyzeScript(script: string): Promise<
   Array<{
-    scriptLine: string;
     visualNeed: string;
     section: string;
     searchQuery: string;
@@ -49,7 +44,6 @@ async function analyzeScript(script: string): Promise<
         content: `You analyze sports video scripts and identify b-roll moments. For each distinct visual need, output a JSON array.
 
 Each element must have:
-- scriptLine: the relevant quote from the script (5-10 words)
 - visualNeed: what should be shown on screen (concise, descriptive)
 - section: "hook" | "body" | "cta"
 - searchQuery: a YouTube search query (5-8 words, specific player/team/action, no quotes needed)
@@ -76,47 +70,21 @@ Output ONLY a valid JSON array, no explanation.`,
   }
 }
 
-async function searchYouTube(query: string): Promise<BRollClip[]> {
-  try {
-    console.log(`  [BRoll] Searching YouTube: "${query}"`);
-    const { stdout } = await execAsync(
-      `yt-dlp "ytsearch3:${query}" --flat-playlist -J --no-playlist`,
-      { timeout: 30000 }
-    );
-    const data = JSON.parse(stdout.trim());
-    const entries: any[] = data.entries || [];
-    return entries
-      .map((e: any) => ({
-        id: e.id || "",
-        title: e.title || "",
-        url: e.url || e.webpage_url || `https://www.youtube.com/watch?v=${e.id}`,
-      }))
-      .filter((c) => c.id);
-  } catch (err: any) {
-    console.log(`  [BRoll] YouTube search failed for "${query}": ${err.message?.slice(0, 120)}`);
-    return [];
-  }
-}
-
 export async function huntBRoll(script: string): Promise<HuntResult> {
   console.log("  [BRoll] Analyzing script for visual moments...");
   const analysis = await analyzeScript(script);
   console.log(`  [BRoll] ${analysis.length} visual moments identified`);
 
-  const moments: BRollMoment[] = [];
-  for (let i = 0; i < analysis.length; i++) {
-    const a = analysis[i];
-    const clips = await searchYouTube(a.searchQuery);
-    console.log(`  [BRoll] Moment ${i + 1}/${analysis.length}: "${a.visualNeed}" — ${clips.length} clips found`);
-    moments.push({
-      index: i,
-      scriptLine: a.scriptLine,
-      visualNeed: a.visualNeed,
-      section: a.section,
-      searchQuery: a.searchQuery,
-      clips,
-      topClip: clips[0] || null,
-    });
+  const moments: BRollMoment[] = analysis.map((a, i) => ({
+    index: i,
+    slugName: `${String(i + 1).padStart(2, "0")}-${slugify(a.visualNeed)}`,
+    visualNeed: a.visualNeed,
+    section: a.section,
+    searchQuery: a.searchQuery,
+  }));
+
+  for (const m of moments) {
+    console.log(`  [BRoll] Moment ${m.index + 1}: "${m.visualNeed}" → query: "${m.searchQuery}"`);
   }
 
   return { moments, generatedAt: new Date() };

@@ -64,9 +64,9 @@ function addToHistory(record: RenderRecord) {
 type BRollClipState = {
   slug: string;
   visualNeed: string;
-  url: string;
+  searchQuery: string;
   filePath: string | null;
-  status: "found" | "downloading" | "downloaded" | "failed" | "skipped";
+  status: "downloading" | "downloaded" | "failed";
 };
 
 type BRollState = {
@@ -92,13 +92,13 @@ async function runBRollPipeline(fullScript: string): Promise<void> {
 
     const huntResult = await huntBRoll(fullScript);
 
-    // Seed clip states from hunt results so UI shows found clips immediately
+    // Seed clip states from hunt results so UI shows queued clips immediately
     brollState.clips = huntResult.moments.map((m) => ({
-      slug: `${String(m.index + 1).padStart(2, "0")}-${m.visualNeed.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 40)}`,
+      slug: m.slugName,
       visualNeed: m.visualNeed,
-      url: m.topClip?.url || "",
+      searchQuery: m.searchQuery,
       filePath: null,
-      status: m.topClip ? "downloading" : "skipped",
+      status: "downloading",
     }));
     brollState.status = "downloading";
     brollState.lastUpdated = new Date();
@@ -109,7 +109,7 @@ async function runBRollPipeline(fullScript: string): Promise<void> {
       const clip = brollState.clips.find((c) => c.slug === result.slug);
       if (clip) {
         clip.filePath = result.filePath;
-        clip.status = result.status === "success" ? "downloaded" : result.status === "skipped" ? "skipped" : "failed";
+        clip.status = result.status === "success" ? "downloaded" : "failed";
         brollState.lastUpdated = new Date();
       }
     });

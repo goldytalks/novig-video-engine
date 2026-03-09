@@ -448,11 +448,12 @@
       : `<div style="font-size:11px;color:var(--text-dim);font-family:var(--mono);margin-bottom:8px;">${downloaded}/${total} downloaded...</div>`;
 
     const items = d.clips.map(c => {
-      const dotClass = c.status === 'downloaded' ? 'clip-downloaded' : c.status === 'downloading' ? 'clip-downloading' : 'clip-skipped';
-      const label = c.status === 'downloaded' ? c.slug + '.mp4' : c.status === 'failed' ? c.visualNeed + ' (failed)' : c.status === 'skipped' ? c.visualNeed + ' (no clip found)' : c.visualNeed;
+      const dotClass = c.status === 'downloaded' ? 'clip-downloaded' : c.status === 'downloading' ? 'clip-downloading' : 'clip-failed';
+      const label = c.status === 'downloaded' ? c.slug + '.mp4' : c.status === 'failed' ? c.visualNeed + ' (failed)' : c.visualNeed;
+      const sub = c.status !== 'downloaded' ? `<div class="broll-clip-url">${c.searchQuery}</div>` : '';
       return `<div class="broll-clip">
         <div class="broll-clip-status ${dotClass}"></div>
-        <div class="broll-clip-name">${label}</div>
+        <div style="flex:1;min-width:0"><div class="broll-clip-name">${label}</div>${sub}</div>
       </div>`;
     }).join('');
 
