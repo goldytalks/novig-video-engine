@@ -1,5 +1,5 @@
 import React from "react";
-import { useCurrentFrame, interpolate, staticFile } from "remotion";
+import { useCurrentFrame, staticFile } from "remotion";
 import { Video } from "@remotion/media";
 import { loadFont } from "@remotion/google-fonts/Anton";
 import type { BRollSlot } from "../types";
@@ -11,14 +11,6 @@ type BRollProps = {
 };
 
 const PlaceholderCard: React.FC<{ slot: BRollSlot }> = ({ slot }) => {
-  const frame = useCurrentFrame();
-
-  const pulseOpacity = interpolate(
-    Math.sin((frame / 60) * Math.PI * 2),
-    [-1, 1],
-    [0.7, 1.0]
-  );
-
   return (
     <div
       style={{
@@ -27,42 +19,39 @@ const PlaceholderCard: React.FC<{ slot: BRollSlot }> = ({ slot }) => {
         left: 0,
         width: "100%",
         height: "100%",
-        backgroundColor: "#000000",
+        backgroundColor: "#0d0d0d",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
+        gap: 20,
       }}
     >
-      {/* Label text */}
+      {/* Player/label name — clean and minimal */}
       <div
         style={{
           fontFamily,
-          fontSize: 80,
-          color: "#00FF00",
+          fontSize: 72,
+          color: "rgba(255,255,255,0.85)",
           textAlign: "center",
           textTransform: "uppercase",
-          padding: "0 60px",
-          lineHeight: 1.1,
-          opacity: pulseOpacity,
+          padding: "0 80px",
+          lineHeight: 1.15,
         }}
       >
-        {slot.label} BROLL HERE
+        {slot.playerName ?? slot.label}
       </div>
 
-      {/* Slot ID in bottom-right */}
+      {/* Subtle green underline accent */}
       <div
         style={{
-          position: "absolute",
-          bottom: 120,
-          right: 32,
-          fontFamily: "monospace",
-          fontSize: 14,
-          color: "rgba(255,255,255,0.35)",
+          width: 80,
+          height: 4,
+          borderRadius: 2,
+          backgroundColor: "#00FF00",
+          opacity: 0.6,
         }}
-      >
-        {slot.id}
-      </div>
+      />
     </div>
   );
 };
@@ -89,6 +78,7 @@ export const BRoll: React.FC<BRollProps> = ({ slots }) => {
         (activeSlot.asset ? (
           <Video
             src={staticFile(activeSlot.asset)}
+            volume={0}
             style={{
               position: "absolute",
               top: 0,

@@ -46,7 +46,7 @@ async function analyzeScript(script: string): Promise<
 Each element must have:
 - visualNeed: what should be shown on screen (concise, descriptive)
 - section: "hook" | "body" | "cta"
-- searchQuery: a YouTube search query (5-8 words, specific player/team/action, no quotes needed)
+- searchQuery: a specific YouTube search query that MUST include the player's full name (if applicable) followed by "NBA highlights 2025". For team or game footage use the team name + "NBA game highlights 2025". Never use generic terms. Examples: "Victor Wembanyama NBA highlights 2025", "Houston Rockets NBA game highlights 2025", "Donovan Mitchell scoring NBA highlights 2025".
 
 Target 1 moment per 8-10 seconds of video (4-7 moments for a 45-60s video).
 Output ONLY a valid JSON array, no explanation.`,
