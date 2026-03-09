@@ -54,7 +54,7 @@ export async function downloadBRoll(
   huntResult: HuntResult,
   onProgress?: (result: DownloadResult) => void
 ): Promise<DownloadResult[]> {
-  const brollDir = path.join(process.cwd(), "broll");
+  const brollDir = path.join(process.cwd(), "public", "broll");
   if (!fs.existsSync(brollDir)) fs.mkdirSync(brollDir, { recursive: true });
 
   const results: DownloadResult[] = [];

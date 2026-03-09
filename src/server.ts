@@ -413,7 +413,7 @@ validateEnv();
 console.log(`\n  Environment: ${isProd ? "production" : "development"}`);
 
 // Ensure directories
-for (const dir of ["output", "public/assets"]) {
+for (const dir of ["output", "public/assets", "public/broll"]) {
   const full = path.join(process.cwd(), dir);
   if (!fs.existsSync(full)) fs.mkdirSync(full, { recursive: true });
 }

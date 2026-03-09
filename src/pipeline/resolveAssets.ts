@@ -7,7 +7,7 @@ function slugify(str: string): string {
 }
 
 export async function resolveAssets(broll: BRollSlot[]): Promise<BRollSlot[]> {
-  const brollDir = path.join(process.cwd(), "broll");
+  const brollDir = path.join(process.cwd(), "public", "broll");
 
   if (!fs.existsSync(brollDir)) {
     console.log(`  [Assets] No broll/ directory found — all slots will use placeholders`);
@@ -31,7 +31,7 @@ export async function resolveAssets(broll: BRollSlot[]): Promise<BRollSlot[]> {
 
     if (match) {
       console.log(`  [Assets] Matched "${slot.label}" -> broll/${match}`);
-      return { ...slot, asset: `../broll/${match}` };
+      return { ...slot, asset: `broll/${match}` };
     }
 
     return slot;
