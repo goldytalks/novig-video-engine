@@ -1,5 +1,9 @@
 import { YoutubeTranscript } from "youtube-transcript";
 import axios from "axios";
+import path from "path";
+import os from "os";
+import fs from "fs";
+import { execSync } from "child_process";
 
 type TranscriptResult = {
   text: string;
@@ -25,7 +29,7 @@ function extractVideoId(url: string): string | null {
 
 function detectPlatform(url: string): "youtube" | "instagram" | "twitter" | "manual" {
   if (/youtube\.com|youtu\.be/i.test(url)) return "youtube";
-  if (/instagram\.com/i.test(url)) return "instagram";
+  if (/instagram\.com|instagr\.am/i.test(url)) return "instagram";
   if (/twitter\.com|x\.com/i.test(url)) return "twitter";
   return "manual";
 }
@@ -166,6 +170,65 @@ async function fetchYouTubeMeta(videoId: string): Promise<{ title: string; chann
   }
 }
 
+// Method 3: yt-dlp + OpenAI Whisper (works for IG Reels, Twitter/X, YT Shorts)
+async function tryYtDlpWhisper(url: string): Promise<string | null> {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) {
+    console.log("  [Transcript] No OPENAI_API_KEY, skipping Whisper");
+    return null;
+  }
+
+  try {
+    console.log("  [Transcript] Trying yt-dlp + Whisper...");
+
+    const tmpDir = os.tmpdir();
+    const tmpFile = path.join(tmpDir, `novig_audio_${Date.now()}`);
+
+    // Download audio only — works for YT Shorts, IG Reels, Twitter/X
+    execSync(
+      `yt-dlp --no-playlist -x --audio-format mp3 --audio-quality 3 -o "${tmpFile}.%(ext)s" "${url}"`,
+      { stdio: "pipe", timeout: 60000 }
+    );
+
+    const audioPath = `${tmpFile}.mp3`;
+    if (!fs.existsSync(audioPath)) {
+      console.log("  [Transcript] yt-dlp produced no audio file");
+      return null;
+    }
+
+    // Send to Whisper API
+    const formData = new FormData();
+    const audioBlob = new Blob([fs.readFileSync(audioPath)], { type: "audio/mpeg" });
+    formData.append("file", audioBlob, "audio.mp3");
+    formData.append("model", "whisper-1");
+    formData.append("response_format", "text");
+    formData.append("language", "en");
+
+    const whisperRes = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${openaiKey}` },
+      body: formData,
+    });
+
+    // Cleanup temp file
+    try { fs.unlinkSync(audioPath); } catch {}
+
+    if (!whisperRes.ok) {
+      console.log(`  [Transcript] Whisper API error: ${whisperRes.status}`);
+      return null;
+    }
+
+    const text = (await whisperRes.text()).trim();
+    if (text.length < 10) return null;
+
+    console.log(`  [Transcript] Whisper success: ${text.length} chars`);
+    return text;
+  } catch (err: any) {
+    console.log(`  [Transcript] yt-dlp/Whisper failed: ${err.message}`);
+    return null;
+  }
+}
+
 export async function extractTranscript(
   url?: string,
   manualTranscript?: string
@@ -194,9 +257,24 @@ export async function extractTranscript(
   const videoId = extractVideoId(url) || "";
 
   if (platform !== "youtube") {
-    throw new Error(
-      `${platform} transcription requires a manual transcript. Paste the spoken words in the transcript field.`
-    );
+    // For IG, Twitter, or unknown — route straight to yt-dlp + Whisper
+    let meta = { title: url, channel: platform };
+
+    const text = await tryYtDlpWhisper(url);
+    if (!text) {
+      throw new Error(
+        `Could not transcribe ${platform} video. Make sure yt-dlp is installed (brew install yt-dlp) and OPENAI_API_KEY is set. You can also paste the transcript manually.`
+      );
+    }
+
+    return {
+      text,
+      method: "whisper",
+      videoId: "",
+      videoTitle: meta.title,
+      channel: meta.channel,
+      platform,
+    };
   }
 
   if (!videoId) {
@@ -209,6 +287,7 @@ export async function extractTranscript(
   let text = await tryInnertubeAndroid(videoId);
   if (!text) text = await tryYoutubeTranscript(videoId);
   if (!text) text = await tryGeminiNative(videoId);
+  if (!text) text = await tryYtDlpWhisper(url);
 
   if (!text) {
     throw new Error(
