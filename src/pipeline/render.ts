@@ -78,21 +78,36 @@ export async function renderVideo(input: VideoInput, outputOverride?: string): P
   const outputPath = outputOverride || path.join(outputDir, `video_${new Date().toISOString().replace(/[:.]/g, "-")}.mp4`);
 
   console.log("\nStep 7: Rendering video...");
-  await renderMedia({
-    composition,
-    serveUrl: bundleLocation,
-    codec: "h264",
-    outputLocation: outputPath,
-    inputProps,
-    onProgress: ({ progress }) => {
-      const pct = Math.floor(progress * 100);
-      if (pct % 10 === 0) {
-        process.stdout.write(`\r  Render progress: ${pct}%`);
-      }
-    },
-  });
+  const RENDER_TIMEOUT_MS = 5 * 60 * 1000;
+
+  await Promise.race([
+    renderMedia({
+      composition,
+      serveUrl: bundleLocation,
+      codec: "h264",
+      outputLocation: outputPath,
+      inputProps,
+      onProgress: ({ progress }) => {
+        const pct = Math.floor(progress * 100);
+        if (pct % 10 === 0) {
+          process.stdout.write(`\r  Render progress: ${pct}%`);
+        }
+      },
+    }),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Render timed out after 5 minutes")), RENDER_TIMEOUT_MS)
+    ),
+  ]);
 
   console.log(`\n  Render complete!`);
+
+  // Cleanup: remove audio file so it doesn't persist between renders
+  const audioFile = path.join(process.cwd(), "public", "assets", "audio.mp3");
+  if (fs.existsSync(audioFile)) {
+    fs.unlinkSync(audioFile);
+    console.log("  Cleaned up audio file");
+  }
+
   console.log(`\nOutput: ${outputPath}`);
   console.log("\n=========================\n");
 

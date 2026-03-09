@@ -119,6 +119,7 @@ export async function generateAudio(script: string): Promise<AudioResult> {
           "xi-api-key": apiKey,
           "Content-Type": "application/json",
         },
+        timeout: 30000,
       }
     );
 
