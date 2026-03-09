@@ -14,21 +14,23 @@ export const BottomBar: React.FC<BottomBarProps> = ({ handle, title, date }) => 
         bottom: 0,
         left: 0,
         right: 0,
-        height: 80,
-        backgroundColor: "rgba(0,0,0,0.6)",
+        height: 180,
+        background:
+          "linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,0.85) 100%)",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        padding: "0 24px",
+        flexDirection: "column",
+        justifyContent: "flex-end",
+        padding: "0 24px 28px 24px",
         zIndex: 30,
       }}
     >
-      {/* Left side: avatar + handle */}
+      {/* Row 1: Avatar + Handle + Subscribe */}
       <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        {/* Circular avatar */}
         <div
           style={{
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             borderRadius: "50%",
             backgroundColor: "#00FF00",
             display: "flex",
@@ -36,44 +38,67 @@ export const BottomBar: React.FC<BottomBarProps> = ({ handle, title, date }) => 
             justifyContent: "center",
             fontFamily: "sans-serif",
             fontWeight: "bold",
-            fontSize: 18,
+            fontSize: 20,
             color: "#000",
+            flexShrink: 0,
           }}
         >
           N
         </div>
+
         <span
           style={{
             fontFamily: "sans-serif",
-            fontSize: 16,
+            fontSize: 17,
+            fontWeight: 600,
             color: "#ffffff",
           }}
         >
           {handle}
         </span>
-      </div>
 
-      {/* Right side: title + date */}
-      <div style={{ textAlign: "right" }}>
+        {/* Subscribe pill */}
         <div
           style={{
+            marginLeft: 8,
+            padding: "6px 16px",
+            borderRadius: 20,
+            backgroundColor: "#ffffff",
             fontFamily: "sans-serif",
-            fontSize: 16,
-            fontWeight: 500,
+            fontSize: 13,
+            fontWeight: 700,
+            color: "#000000",
+            letterSpacing: 0.3,
+            flexShrink: 0,
+          }}
+        >
+          Subscribe
+        </div>
+      </div>
+
+      {/* Row 2: Title + Date */}
+      <div style={{ marginTop: 8, paddingLeft: 56 }}>
+        <span
+          style={{
+            fontFamily: "sans-serif",
+            fontSize: 15,
+            fontWeight: 700,
             color: "#ffffff",
           }}
         >
           {title}
-        </div>
-        <div
+        </span>
+        <span
           style={{
             fontFamily: "sans-serif",
-            fontSize: 13,
-            color: "rgba(255,255,255,0.5)",
+            fontSize: 15,
+            fontWeight: 400,
+            color: "rgba(255,255,255,0.6)",
+            marginLeft: 8,
           }}
         >
           {date}
-        </div>
+        </span>
       </div>
     </div>
   );

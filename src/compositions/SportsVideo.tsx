@@ -26,7 +26,7 @@ export const SportsVideo: React.FC<SportsVideoProps> = ({
       <BRoll slots={input.broll} />
 
       {/* Layer 2: Sidebar (fixed left) */}
-      <Sidebar />
+      <Sidebar picks={input.picks} totalSegments={input.script.length} />
 
       {/* Layer 3: Captions (synced to timestamps) */}
       <Captions words={words} />

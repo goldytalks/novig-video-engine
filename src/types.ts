@@ -1,9 +1,18 @@
+export type PickTimeline = {
+  playerName: string;
+  team: string;
+  headshotUrl: string | null;
+  line: string;
+  segmentIndex: number;
+};
+
 export type VideoInput = {
   title: string;
   date: string;
   handle: string;
   script: ScriptSegment[];
   broll: BRollSlot[];
+  picks?: PickTimeline[];
 };
 
 export type ScriptSegment = {
