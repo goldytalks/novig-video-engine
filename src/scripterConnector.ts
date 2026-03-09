@@ -1,4 +1,4 @@
-import type { VideoInput, BRollSlot } from "./types";
+import type { VideoInput, BRollSlot, PickTimeline } from "./types";
 
 type ScripterOutput = {
   script: string;
@@ -46,11 +46,21 @@ export function scripterOutputToVideoInput(output: ScripterOutput): VideoInput {
     });
   }
 
+  // Build picks array from players
+  const picks: PickTimeline[] = players.map((playerName, i) => ({
+    playerName,
+    team: "",
+    headshotUrl: null,
+    line: "",
+    segmentIndex: i,
+  }));
+
   return {
     title,
     date,
     handle,
     script: scriptSegments,
     broll,
+    picks,
   };
 }
