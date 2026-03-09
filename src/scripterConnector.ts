@@ -1,4 +1,5 @@
 import type { VideoInput, BRollSlot, PickTimeline } from "./types";
+import { getEspnHeadshotUrl } from "./utils/espnHeadshot";
 
 type ScripterOutput = {
   script: string;
@@ -50,7 +51,7 @@ export function scripterOutputToVideoInput(output: ScripterOutput): VideoInput {
   const picks: PickTimeline[] = players.map((playerName, i) => ({
     playerName,
     team: "",
-    headshotUrl: null,
+    headshotUrl: getEspnHeadshotUrl(playerName, "nba"),
     line: "",
     segmentIndex: i,
   }));
