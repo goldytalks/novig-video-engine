@@ -4,7 +4,11 @@ import path from "path";
 import fs from "fs";
 import { generateAudio } from "./generateAudio";
 import { resolveAssets } from "./resolveAssets";
+import { detectStatMoments } from "./detectStats";
 import type { VideoInput, SportsVideoProps } from "../types";
+
+const INTRO_FRAMES = 90;  // 3s
+const OUTRO_FRAMES = 120; // 4s
 
 export async function renderVideo(input: VideoInput, outputOverride?: string): Promise<string> {
   console.log("\n=== NOVIG VIDEO ENGINE ===\n");
@@ -24,14 +28,16 @@ export async function renderVideo(input: VideoInput, outputOverride?: string): P
   const lastWord = timestamps[timestamps.length - 1];
   const audioDuration = lastWord ? lastWord.end + 0.5 : 15;
   const fps = 30;
-  const durationInFrames = Math.ceil(audioDuration * fps);
-  console.log(`\nStep 4: Duration = ${audioDuration.toFixed(1)}s (${durationInFrames} frames @ ${fps}fps)`);
+  const audioFrames = Math.ceil(audioDuration * fps);
+  const durationInFrames = INTRO_FRAMES + audioFrames + OUTRO_FRAMES;
+  const outroStartFrame = INTRO_FRAMES + audioFrames;
+  console.log(`\nStep 4: Duration = ${audioDuration.toFixed(1)}s audio + 3s intro + 4s outro = ${(durationInFrames/fps).toFixed(1)}s total (${durationInFrames} frames @ ${fps}fps)`);
 
-  // Update broll endFrame if needed to fit audio
+  // BRoll slots are relative to audio start (inside main content Sequence)
   const updatedInput: VideoInput = {
     ...input,
     broll: resolvedBroll.map((slot, i) => {
-      const segmentDuration = Math.floor(durationInFrames / resolvedBroll.length);
+      const segmentDuration = Math.floor(audioFrames / resolvedBroll.length);
       return {
         ...slot,
         startFrame: i * segmentDuration,
@@ -53,11 +59,21 @@ export async function renderVideo(input: VideoInput, outputOverride?: string): P
   console.log("  Bundle complete.");
 
   console.log("\nStep 6: Selecting composition...");
+  // Detect stat moments from the word timestamps
+  const firstPlayerName = input.picks?.[0]?.playerName
+    ?? input.broll.find((b) => b.playerName)?.playerName
+    ?? "Player";
+  const statMoments = detectStatMoments(timestamps, firstPlayerName);
+  console.log(`  Stat moments detected: ${statMoments.length}`);
+
   const inputProps: SportsVideoProps = {
     input: updatedInput,
     words: timestamps,
     audioSrc: audioPath,
     durationInFrames,
+    introEndFrame: INTRO_FRAMES,
+    outroStartFrame,
+    statMoments,
   };
 
   const composition = await selectComposition({
