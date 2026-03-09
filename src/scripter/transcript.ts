@@ -65,8 +65,8 @@ function parseCaptionXml(xml: string): string | null {
 
 // Method 0: Innertube ANDROID client (best for Shorts + auto-captions)
 async function tryInnertubeAndroid(videoId: string): Promise<string | null> {
+  console.log(`[Transcript] Method: InnertubeAndroid — attempting for videoId=${videoId}`);
   try {
-    console.log("  [Transcript] Trying Innertube ANDROID client...");
     const res = await fetch("https://www.youtube.com/youtubei/v1/player?prettyPrint=false", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -77,35 +77,54 @@ async function tryInnertubeAndroid(videoId: string): Promise<string | null> {
         },
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.log(`[Transcript] Method: InnertubeAndroid — Result: failed — Reason: HTTP ${res.status}`);
+      return null;
+    }
     const data = await res.json();
     const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
-    if (!tracks || tracks.length === 0) return null;
+    if (!tracks || tracks.length === 0) {
+      console.log(`[Transcript] Method: InnertubeAndroid — Result: failed — Reason: no caption tracks found`);
+      return null;
+    }
     const track = tracks.find((t: any) => t.languageCode === "en") || tracks[0];
     const capRes = await fetch(track.baseUrl);
     const xml = await capRes.text();
-    if (!xml || xml.length < 50) return null;
+    if (!xml || xml.length < 50) {
+      console.log(`[Transcript] Method: InnertubeAndroid — Result: failed — Reason: caption XML too short`);
+      return null;
+    }
     const text = parseCaptionXml(xml);
-    if (text) console.log(`  [Transcript] Innertube ANDROID success: ${text.length} chars`);
+    if (text) {
+      console.log(`[Transcript] Method: InnertubeAndroid — Result: success — Reason: ${text.length} chars extracted`);
+    } else {
+      console.log(`[Transcript] Method: InnertubeAndroid — Result: failed — Reason: could not parse caption XML`);
+    }
     return text;
   } catch (err: any) {
-    console.log(`  [Transcript] Innertube ANDROID failed: ${err.message}`);
+    console.log(`[Transcript] Method: InnertubeAndroid — Result: failed — Reason: ${err.message}`);
     return null;
   }
 }
 
 // Method 1: youtube-transcript package (captions)
 async function tryYoutubeTranscript(videoId: string): Promise<string | null> {
+  console.log(`[Transcript] Method: YoutubeTranscript — attempting for videoId=${videoId}`);
   try {
-    console.log("  [Transcript] Trying youtube-transcript package...");
     const items = await YoutubeTranscript.fetchTranscript(videoId);
-    if (!items || items.length === 0) return null;
+    if (!items || items.length === 0) {
+      console.log(`[Transcript] Method: YoutubeTranscript — Result: failed — Reason: no transcript items returned`);
+      return null;
+    }
     const text = items.map((i: any) => i.text).join(" ").trim();
-    if (text.length < 10) return null;
-    console.log(`  [Transcript] Got ${text.length} chars from captions`);
+    if (text.length < 10) {
+      console.log(`[Transcript] Method: YoutubeTranscript — Result: failed — Reason: transcript too short (${text.length} chars)`);
+      return null;
+    }
+    console.log(`[Transcript] Method: YoutubeTranscript — Result: success — Reason: ${text.length} chars extracted`);
     return text;
   } catch (err: any) {
-    console.log(`  [Transcript] youtube-transcript failed: ${err.message}`);
+    console.log(`[Transcript] Method: YoutubeTranscript — Result: failed — Reason: ${err.message}`);
     return null;
   }
 }
@@ -114,12 +133,12 @@ async function tryYoutubeTranscript(videoId: string): Promise<string | null> {
 async function tryGeminiNative(videoId: string): Promise<string | null> {
   const key = process.env.GOOGLE_AI_KEY;
   if (!key) {
-    console.log("  [Transcript] No GOOGLE_AI_KEY, skipping Gemini native");
+    console.log(`[Transcript] Method: GeminiNative — Result: failed — Reason: GOOGLE_AI_KEY not set`);
     return null;
   }
 
+  console.log(`[Transcript] Method: GeminiNative — attempting for videoId=${videoId}`);
   try {
-    console.log("  [Transcript] Trying Gemini native API...");
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
     const resp = await axios.post(
       url,
@@ -145,11 +164,14 @@ async function tryGeminiNative(videoId: string): Promise<string | null> {
     );
 
     const text = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-    if (!text || text.length < 10) return null;
-    console.log(`  [Transcript] Got ${text.length} chars from Gemini native`);
+    if (!text || text.length < 10) {
+      console.log(`[Transcript] Method: GeminiNative — Result: failed — Reason: empty or too-short response`);
+      return null;
+    }
+    console.log(`[Transcript] Method: GeminiNative — Result: success — Reason: ${text.length} chars extracted`);
     return text;
   } catch (err: any) {
-    console.log(`  [Transcript] Gemini native failed: ${err.message}`);
+    console.log(`[Transcript] Method: GeminiNative — Result: failed — Reason: ${err.message}`);
     return null;
   }
 }
@@ -170,29 +192,36 @@ async function fetchYouTubeMeta(videoId: string): Promise<{ title: string; chann
   }
 }
 
-// Method 3: yt-dlp + OpenAI Whisper (works for IG Reels, Twitter/X, YT Shorts)
+// Method 4: yt-dlp + OpenAI Whisper (works for IG Reels, Twitter/X, YT Shorts)
 async function tryYtDlpWhisper(url: string): Promise<string | null> {
   const openaiKey = process.env.OPENAI_API_KEY;
   if (!openaiKey) {
-    console.log("  [Transcript] No OPENAI_API_KEY, skipping Whisper");
+    console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: OPENAI_API_KEY not set`);
     return null;
   }
 
+  console.log(`[Transcript] Method: YtDlpWhisper — attempting for url=${url}`);
+
+  const tmpDir = os.tmpdir();
+  const baseName = `novig_audio_${Date.now()}`;
+  const tmpFile = path.join(tmpDir, baseName);
+  let audioPath: string | null = null;
+
   try {
-    console.log("  [Transcript] Trying yt-dlp + Whisper...");
-
-    const tmpDir = os.tmpdir();
-    const tmpFile = path.join(tmpDir, `novig_audio_${Date.now()}`);
-
     // Download audio only — works for YT Shorts, IG Reels, Twitter/X
     execSync(
       `yt-dlp --no-playlist -x --audio-format mp3 --audio-quality 3 -o "${tmpFile}.%(ext)s" "${url}"`,
       { stdio: "pipe", timeout: 60000 }
     );
 
-    const audioPath = `${tmpFile}.mp3`;
-    if (!fs.existsSync(audioPath)) {
-      console.log("  [Transcript] yt-dlp produced no audio file");
+    // Scan tmp dir for any file matching the base pattern (yt-dlp may use different extension)
+    const files = fs.readdirSync(tmpDir);
+    const matched = files.find((f) => f.startsWith(baseName));
+    if (matched) {
+      audioPath = path.join(tmpDir, matched);
+      console.log(`[Transcript] Method: YtDlpWhisper — yt-dlp produced file: ${matched}`);
+    } else {
+      console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: yt-dlp produced no audio file in ${tmpDir}`);
       return null;
     }
 
@@ -210,22 +239,27 @@ async function tryYtDlpWhisper(url: string): Promise<string | null> {
       body: formData,
     });
 
-    // Cleanup temp file
-    try { fs.unlinkSync(audioPath); } catch {}
-
     if (!whisperRes.ok) {
-      console.log(`  [Transcript] Whisper API error: ${whisperRes.status}`);
+      console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: Whisper API returned HTTP ${whisperRes.status}`);
       return null;
     }
 
     const text = (await whisperRes.text()).trim();
-    if (text.length < 10) return null;
+    if (text.length < 10) {
+      console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: Whisper returned too-short text (${text.length} chars)`);
+      return null;
+    }
 
-    console.log(`  [Transcript] Whisper success: ${text.length} chars`);
+    console.log(`[Transcript] Method: YtDlpWhisper — Result: success — Reason: ${text.length} chars extracted`);
     return text;
   } catch (err: any) {
-    console.log(`  [Transcript] yt-dlp/Whisper failed: ${err.message}`);
+    console.log(`[Transcript] Method: YtDlpWhisper — Result: failed — Reason: ${err.message}`);
     return null;
+  } finally {
+    // Cleanup temp file
+    if (audioPath) {
+      try { fs.unlinkSync(audioPath); } catch {}
+    }
   }
 }
 
@@ -258,7 +292,8 @@ export async function extractTranscript(
 
   if (platform !== "youtube") {
     // For IG, Twitter, or unknown — route straight to yt-dlp + Whisper
-    let meta = { title: url, channel: platform };
+    console.log(`[Transcript] Platform: ${platform} — routing directly to YtDlpWhisper`);
+    const meta = { title: url, channel: platform };
 
     const text = await tryYtDlpWhisper(url);
     if (!text) {
@@ -281,13 +316,26 @@ export async function extractTranscript(
     throw new Error("Could not extract YouTube video ID from URL");
   }
 
+  const isShorts = /\/shorts\//i.test(url);
   const meta = await fetchYouTubeMeta(videoId);
 
-  // Try methods in order
-  let text = await tryInnertubeAndroid(videoId);
-  if (!text) text = await tryYoutubeTranscript(videoId);
-  if (!text) text = await tryGeminiNative(videoId);
-  if (!text) text = await tryYtDlpWhisper(url);
+  let text: string | null = null;
+
+  if (isShorts) {
+    // Shorts: try Whisper first (captions almost never available), then fall back to caption methods
+    console.log(`[Transcript] Detected YouTube Shorts URL — running YtDlpWhisper first`);
+    text = await tryYtDlpWhisper(url);
+    if (!text) text = await tryInnertubeAndroid(videoId);
+    if (!text) text = await tryYoutubeTranscript(videoId);
+    if (!text) text = await tryGeminiNative(videoId);
+  } else {
+    // Regular YouTube: try caption methods first, Whisper as final fallback
+    console.log(`[Transcript] Detected regular YouTube URL — trying caption methods first`);
+    text = await tryInnertubeAndroid(videoId);
+    if (!text) text = await tryYoutubeTranscript(videoId);
+    if (!text) text = await tryGeminiNative(videoId);
+    if (!text) text = await tryYtDlpWhisper(url);
+  }
 
   if (!text) {
     throw new Error(
